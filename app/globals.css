@@ -106,12 +106,81 @@
 /* Hide scrollbar for IE, Edge and Firefox */
  
 .no-scrollbar {
- 
-  -ms-overflow-style: none;  /* IE and Edge */
- 
-  scrollbar-width: none;  /* Firefox */
- 
+
+-ms-overflow-style: none;  /* IE and Edge */
+
+scrollbar-width: none;  /* Firefox */
+
 }
 
+/* --- PointTrack Mobile Login Styles --- */
+:root {
+--pt-primary: #f97316;
+--pt-primary-dark: #ea580c;
+--pt-primary-light: #fb923c;
+--pt-primary-50: #fff7ed;
+--pt-primary-100: #ffedd5;
+--pt-surface: #ffffff;
+--pt-surface-secondary: #f9fafb;
+--pt-text-primary: #111827;
+--pt-text-secondary: #6b7280;
+--pt-border: #e5e7eb;
+}
+
+.login-app-container {
+  width: 100%;
+  margin: 0 auto;
+  background-color: var(--pt-surface);
+  min-height: 100vh;
+  position: relative;
+}
+
+.login-btn-primary {
+background-color: var(--pt-primary);
+color: white;
+padding: 12px 24px;
+border-radius: 12px;
+font-weight: 600;
+font-size: 16px;
+border: none;
+cursor: pointer;
+transition: all 0.2s ease;
+display: flex;
+align-items: center;
+justify-content: center;
+gap: 8px;
+}
+
+.login-btn-primary:hover {
+background-color: var(--pt-primary-dark);
+transform: translateY(-1px);
+box-shadow: 0 4px 12px rgba(249, 115, 22, 0.4);
+}
+
+.login-btn-primary:active {
+transform: translateY(0);
+}
+
+.login-input-field {
+  width: 100%;
+  padding: 14px 16px 14px 48px; /* Tăng padding-left lên 48px để tránh icon */
+  border: 1.5px solid var(--pt-border);
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 500;
+  color: #000000; /* Màu chữ đen đậm */
+  transition: all 0.2s ease;
+  outline: none;
+  background-color: var(--pt-surface-secondary);
+}
+
+.login-input-field::placeholder {
+  color: #9ca3af; /* Màu placeholder xám nhạt */
+}
+.login-input-field:focus {
+border-color: var(--pt-primary);
+box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15);
+background-color: var(--pt-surface);
+}
 
  

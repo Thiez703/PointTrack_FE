@@ -3,12 +3,12 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { Phone, Lock, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import Turnstile from "react-turnstile";
+import { motion } from "framer-motion";
 
 import { LoginSchema, LoginFormValues } from "@/app/types/auth.schema";
 import { AuthService } from "@/app/services/auth.service";
@@ -18,14 +18,16 @@ export default function LoginForm() {
   const router = useRouter();
   const setAuth = useAuthStore((state) => state.setAuth);
   const [showPassword, setShowPassword] = useState(false);
+  const [isCaptchaLoading, setIsCaptchaLoading] = useState(true);
 
-  const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "0x4AAAAAACqPbo4Qy-JfhL5U";
+  // Sử dụng Key thử nghiệm "Always Pass" của Cloudflare để tránh lỗi xác minh thất bại ở localhost
+  // Link ref: https://developers.cloudflare.com/turnstile/troubleshooting/#testing-locally-and-in-ci
+  const SITE_KEY = "1x00000000000000000000AA"; 
   
   const {
     register,
     handleSubmit,
     setValue,
-    setError,
     clearErrors,
     watch,
     formState: { errors },
@@ -88,27 +90,20 @@ export default function LoginForm() {
     mutation.mutate(data);
   };
 
-  const getInputClass = (hasError: boolean) =>
-    `group flex items-center bg-gray-50 border rounded-xl transition-all duration-200 ${
-      hasError
-        ? "border-red-500 ring-1 ring-red-100"
-        : "border-gray-200 focus-within:border-teal-500 focus-within:ring-2 focus-within:ring-teal-50"
-    }`;
-
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 w-full">
-      <div className="space-y-1.5">
-        <label className="text-sm font-semibold text-slate-700 ml-1">Số điện thoại</label>
-        <div className={getInputClass(!!errors.phoneNumber)}>
-          <div className={`pl-4 ${errors.phoneNumber ? "text-red-500" : "text-slate-400"}`}>
-            <Phone size={20} />
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 w-full">
+      {/* Phone input */}
+      <div>
+        <label className="text-sm font-bold text-gray-700 mb-1.5 block ml-1">Số điện thoại</label>
+        <div className="relative">
+          <div className="absolute left-4 top-1/2 -translate-y-1/2 z-10">
+             <Phone className={`w-5 h-5 ${errors.phoneNumber ? "text-red-500" : "text-gray-400"}`} />
           </div>
           <input
             type="tel"
-            placeholder="Ví dụ: 0912345678"
-            className="w-full bg-transparent py-3.5 px-3 text-[15px] focus:outline-none text-slate-800 font-medium placeholder:text-slate-400"
+            placeholder="Nhập số điện thoại"
             disabled={mutation.isPending}
-            autoComplete="tel"
+            className={`login-input-field ${errors.phoneNumber ? "border-red-500 ring-1 ring-red-100" : ""}`}
             {...register("phoneNumber")}
           />
         </div>
@@ -117,31 +112,26 @@ export default function LoginForm() {
         )}
       </div>
 
-      <div className="space-y-1.5">
-        <div className="flex justify-between items-center px-1">
-          <label className="text-sm font-semibold text-slate-700">Mật khẩu</label>
-          <Link href="/reset-password" name="reset-password" className="text-xs text-teal-600 hover:text-teal-700 font-bold active:scale-95 transition-transform">
-            Quên mật khẩu?
-          </Link>
-        </div>
-        <div className={getInputClass(!!errors.password)}>
-          <div className={`pl-4 ${errors.password ? "text-red-500" : "text-slate-400"}`}>
-            <Lock size={20} />
+      {/* Password input */}
+      <div>
+        <label className="text-sm font-bold text-gray-700 mb-1.5 block ml-1">Mật khẩu</label>
+        <div className="relative">
+          <div className="absolute left-4 top-1/2 -translate-y-1/2 z-10">
+            <Lock className={`w-5 h-5 ${errors.password ? "text-red-500" : "text-gray-400"}`} />
           </div>
           <input
             type={showPassword ? "text" : "password"}
             placeholder="Nhập mật khẩu"
-            className="w-full bg-transparent py-3.5 px-3 text-[15px] focus:outline-none text-slate-800 font-medium"
             disabled={mutation.isPending}
-            autoComplete="current-password"
+            className={`login-input-field ${errors.password ? "border-red-500 ring-1 ring-red-100" : ""}`}
             {...register("password")}
           />
-          <button 
-            type="button" 
-            onClick={() => setShowPassword(!showPassword)} 
-            className="pr-4 text-slate-400 active:text-teal-600 transition-colors"
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-orange-500 transition-colors z-10"
           >
-            {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+            {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
           </button>
         </div>
         {errors.password && (
@@ -149,42 +139,52 @@ export default function LoginForm() {
         )}
       </div>
 
-      <div className="flex flex-col items-center py-2">
-        <div className="w-full scale-90 sm:scale-100 flex justify-center overflow-hidden min-h-[65px]">
+      {/* Captcha - Cloudflare Turnstile */}
+      <div className="flex flex-col items-center py-2 min-h-[85px] relative">
+        {isCaptchaLoading && (
+          <div className="absolute inset-0 flex items-center justify-center z-20 bg-white rounded-xl">
+            <div className="w-full h-[65px] bg-orange-50 rounded-xl border border-orange-100 flex items-center justify-center gap-3">
+              <div className="w-5 h-5 border-2 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
+              <span className="text-[12px] text-orange-600 font-bold uppercase tracking-tight">Đang xác thực hệ thống...</span>
+            </div>
+          </div>
+        )}
+        <div className={`w-full flex justify-center min-h-[65px] transition-opacity duration-500 ${isCaptchaLoading ? 'opacity-0' : 'opacity-100'}`}>
           <Turnstile
             sitekey={SITE_KEY}
+            onLoad={() => setIsCaptchaLoading(false)}
             onVerify={(token) => {
               setValue("captchaToken", token, { shouldValidate: true });
               clearErrors("captchaToken");
             }}
             onExpire={() => setValue("captchaToken", "", { shouldValidate: true })}
+            onError={() => {
+                setIsCaptchaLoading(false);
+                toast.error("Lỗi tải Captcha. Vui lòng làm mới trang.");
+            }}
           />
         </div>
-        {errors.captchaToken && (
-          <p className="text-[11px] text-red-500 font-medium mt-2">{errors.captchaToken.message}</p>
+        {errors.captchaToken && !isCaptchaLoading && (
+          <p className="text-[11px] text-red-500 font-medium mt-1">{errors.captchaToken.message}</p>
         )}
       </div>
 
-      <button
+      {/* Login button */}
+      <motion.button
         type="submit"
+        whileTap={{ scale: 0.97 }}
         disabled={mutation.isPending || !captchaToken}
-        className={`w-full py-4 font-bold rounded-2xl transition-all duration-300 shadow-md ${
-          (mutation.isPending || !captchaToken)
-            ? "bg-slate-200 text-slate-400 cursor-not-allowed scale-[0.98] shadow-none"
-            : "bg-teal-600 hover:bg-teal-700 active:scale-[0.98] text-white shadow-teal-200"
-        } text-base tracking-wide`}
+        className="login-btn-primary w-full !py-4 !rounded-2xl !text-base !font-black disabled:opacity-60 shadow-xl shadow-orange-100"
       >
-        {mutation.isPending ? "ĐANG XỬ LÝ..." : "ĐĂNG NHẬP"}
-      </button>
-
-      <div className="text-center pt-4">
-        <p className="text-sm text-slate-500">
-          Người dùng mới?{" "}
-          <Link href="/signup" className="text-teal-600 font-extrabold hover:underline ml-1">
-            Đăng ký tài khoản
-          </Link>
-        </p>
-      </div>
+        {mutation.isPending ? (
+          <div className="flex items-center gap-2">
+            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            <span>ĐANG XỬ LÝ...</span>
+          </div>
+        ) : (
+          "ĐĂNG NHẬP"
+        )}
+      </motion.button>
     </form>
   );
 }

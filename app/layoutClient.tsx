@@ -31,7 +31,7 @@ export default function LayoutClient({ children }: Readonly<{ children: React.Re
         </div>
 
         <ToastContainer
-          position='top-right'
+          position='top-center'
           autoClose={3000}
           hideProgressBar={false}
           newestOnTop
@@ -41,7 +41,7 @@ export default function LayoutClient({ children }: Readonly<{ children: React.Re
           pauseOnHover
           theme='colored'
         />
-        <Toaster position='top-right' />
+        <Toaster position='top-center' />
       </ThemeProvider>
     </QueryClientProvider>
   )
