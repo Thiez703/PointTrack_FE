@@ -7,7 +7,7 @@ import { NextResponse } from 'next/server'
 export async function POST(request: Request) {
   const req = (await request.json()) as LoginFormValues
   try {
-    const res = await AuthService.login(req)
+    const res = await AuthService.loginJava(req)
 
     const accessToken = jwtDecode<JwtPayload>(res.accessToken)
     const expiresDateAccessToken =

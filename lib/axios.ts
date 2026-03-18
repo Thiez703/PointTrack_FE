@@ -24,10 +24,10 @@ let isRefreshing = false
 let failedQueue: FailedQueueItem[] = []
 
 const isClient = () => typeof window !== 'undefined'
-const isDev = process.env.NODE_ENV === 'development'
+const isDev = true // Ép hiển thị log trong quá trình debug kết nối
 
 const debugLog = (...args: unknown[]) => {
-  if (isDev) console.log(...args)
+  if (isDev) console.log('🔍 [API Debug]:', ...args)
 }
 
 const redact = (data: unknown) => {

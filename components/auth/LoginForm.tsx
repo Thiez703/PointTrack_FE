@@ -55,7 +55,7 @@ export default function LoginForm() {
         if (data.role === "ADMIN") {
           router.push("/admin");
         } else {
-          router.push("/user");
+          router.push("/");
         }
       }
     },
@@ -72,7 +72,7 @@ export default function LoginForm() {
           toast.error("Thông tin đăng nhập không hợp lệ (SĐT hoặc mật khẩu)");
         }
       } else {
-        toast.error("Lỗi hệ thống, vui lòng thử lại.");
+        toast.error(`Lỗi hệ thống (${status || 'Network Error'}), vui lòng thử lại.`);
       }
 
       resetCaptcha();
