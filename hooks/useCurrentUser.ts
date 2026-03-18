@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query'
-import { UserType } from '@/app/types/user.schema'
 import { AuthService } from '@/app/services/auth.service'
 import { useEffect } from 'react'
 import { useAuthStore } from '@/stores/useAuthStore'
@@ -7,15 +6,17 @@ import { useAuthStore } from '@/stores/useAuthStore'
 export function useCurrentUser() {
   const { setUserDetail, accessToken, setAccessAndRefreshToken } = useAuthStore()
 
-  const { data: token } = useQuery({
-    queryKey: ['test'],
-    queryFn: () => AuthService.meTokenNext()
+  const { data: token, isLoading: isLoadingToken } = useQuery({
+    queryKey: ['tokenNext'],
+    queryFn: () => AuthService.meTokenNext(),
+    staleTime: Infinity,
+    retry: false
   })
 
-  const { data } = useQuery<UserType, Error, UserType>({
+  const { data, isLoading } = useQuery({
     queryKey: ['currentUser', accessToken],
     queryFn: () => AuthService.me(),
-    staleTime: 0,
+    staleTime: 30000,
     enabled: !!accessToken,
     refetchOnMount: true
   })
@@ -30,9 +31,10 @@ export function useCurrentUser() {
     if (token) {
       setAccessAndRefreshToken(token)
     }
-  }, [token, setUserDetail, setAccessAndRefreshToken])
+  }, [token, setAccessAndRefreshToken])
 
   return {
-    data
+    user: data,
+    isLoading: isLoadingToken || isLoading || (!!accessToken && !data)
   }
 }

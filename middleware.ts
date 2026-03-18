@@ -10,6 +10,7 @@ const AUTH_PATHS = [
 
 // Các trang yêu cầu phải đăng nhập (Private pages)
 const PROTECTED_PATHS = [
+  '/',
   '/profile',
   '/edit-profile',
   '/address',
@@ -23,7 +24,7 @@ const PROTECTED_PATHS = [
 export function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname
 
-  // Bỏ qua các đường dẫn static và api
+  // 1. Bỏ qua các đường dẫn static và api quan trọng
   if (
     path.startsWith('/_next') ||
     path.startsWith('/api') ||
@@ -34,16 +35,16 @@ export function middleware(req: NextRequest) {
   }
 
   const token = req.cookies.get('accessToken')?.value ?? req.cookies.get('refreshToken')?.value
+  const isAuthPath = AUTH_PATHS.some(p => path === p || path.startsWith(p + '/'))
   
-  const isAuthPath = AUTH_PATHS.some(p => path.startsWith(p))
-  const isProtectedPath = PROTECTED_PATHS.some(p => path.startsWith(p)) || path.startsWith('/admin') || path.startsWith('/inventory')
-
-  // 1. Nếu đã đăng nhập mà cố vào trang login/signup -> về trang chủ
-  if (token && isAuthPath) {
-    return NextResponse.redirect(new URL('/', req.url))
+  // Nếu là trang Auth (login/signup), cho phép vào (không redirect về '/' để tránh loop nếu token chết)
+  if (isAuthPath) {
+    return NextResponse.next()
   }
 
-  // 2. Nếu chưa đăng nhập mà vào trang yêu cầu tài khoản -> về trang login
+  const isProtectedPath = PROTECTED_PATHS.some(p => path === p || path.startsWith(p + '/')) || path.startsWith('/admin') || path.startsWith('/inventory')
+
+  // Nếu chưa đăng nhập mà vào trang yêu cầu tài khoản -> về trang login
   if (!token && isProtectedPath) {
     return NextResponse.redirect(new URL('/login', req.url))
   }
@@ -52,7 +53,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico|images|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
-  ],
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
 }

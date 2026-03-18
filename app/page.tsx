@@ -10,6 +10,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/stores/useAuthStore';
 import BottomNav from '@/components/common/BottomNav';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 // --- MOCK DATA ---
 const monthlyStats = { totalWorkDays: 22, otHours: 14.5, lateDays: 2 };
@@ -27,9 +28,21 @@ const statCards = [
 ];
 
 export default function Home() {
-    const { user } = useAuthStore();
+    const { userInfo: user } = useAuthStore();
+    const { isLoading } = useCurrentUser();
     const router = useRouter();
     const maxHours = Math.max(...weeklyChartData.map(d => d.hours), 1);
+
+    if (isLoading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-white">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-12 h-12 border-4 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
+                    <p className="text-orange-500 font-bold animate-pulse uppercase tracking-widest text-xs">Đang tải dữ liệu...</p>
+                </div>
+            </div>
+        );
+    }
 
     // --- CASE 1: NOT LOGGED IN (RESPONSIVE LANDING PAGE) ---
     if (!user) {
@@ -58,7 +71,7 @@ export default function Home() {
                                     Giải pháp chấm công GPS & quản lý ca làm di động thông minh. Tối ưu hiệu suất cho doanh nghiệp hiện đại.
                                 </p>
                                 <div className="hidden lg:block">
-                                    <Link href="/login" className="inline-flex items-center justify-center gap-3 bg-white text-orange-600 font-black py-4 px-10 rounded-2xl shadow-xl hover:bg-orange-50 active:scale-[0.98] transition-all">
+                                    <Link href="/login" className="inline-flex items-center justify-center gap-3 bg-white text-orange-600 font-black py-4 px-10 rounded-2xl shadow-xl hover:bg-orange-50 active:scale-[0.98] transition-all" prefetch={false}>
                                         <LogIn size={20} /> ĐĂNG NHẬP HỆ THỐNG
                                     </Link>
                                 </div>
@@ -114,7 +127,7 @@ export default function Home() {
 
                     {/* Mobile Only Login Button */}
                     <div className="lg:hidden w-full space-y-6 mt-auto">
-                        <Link href="/login" className="flex items-center justify-center gap-3 w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white font-black py-4 rounded-2xl shadow-lg active:scale-[0.98] transition-all">
+                        <Link href="/login" className="flex items-center justify-center gap-3 w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white font-black py-4 rounded-2xl shadow-lg active:scale-[0.98] transition-all" prefetch={false}>
                             <LogIn size={20} /> BẮT ĐẦU NGAY
                         </Link>
                         <p className="text-[10px] text-gray-400 text-center font-bold tracking-widest uppercase">

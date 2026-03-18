@@ -18,6 +18,8 @@ interface AuthStore {
   setRefreshToken: (token: string | null) => void
   setAuth: (data: AuthResponse) => void
   setUserInfo: (info?: UserInfo) => void
+  setAccessAndRefreshToken: (data: AuthResponse) => void
+  setUserDetail: (info: any) => void
   logout: () => void
 }
 
@@ -41,5 +43,18 @@ export const useAuthStore = create<AuthStore>((set) => ({
       }
     }),
   setUserInfo: (userInfo?: UserInfo) => set({ userInfo }),
+  setAccessAndRefreshToken: (data: AuthResponse) => 
+    set({ accessToken: data.accessToken, refreshToken: data.refreshToken }),
+  setUserDetail: (info: any) => 
+    set({ 
+      userInfo: {
+        userId: info.userId || info.id,
+        fullName: info.fullName || info.displayName || info.fullname,
+        email: info.email,
+        phoneNumber: info.phoneNumber || info.phone,
+        avatarUrl: info.avatarUrl || (info.avatar && info.avatar.imageUrl),
+        role: info.role || 'USER'
+      }
+    }),
   logout: () => set({ userInfo: undefined, accessToken: null, refreshToken: null })
 }))
