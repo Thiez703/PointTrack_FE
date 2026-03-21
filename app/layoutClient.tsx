@@ -4,8 +4,6 @@ import { useRef } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ThemeProvider } from '@/components/providers/ThemeProvider'
 import { Toaster } from '@/components/ui/sonner'
-import { ToastContainer } from 'react-toastify'
-import 'react-toastify/dist/ReactToastify.css';
 
 export default function LayoutClient({ children }: Readonly<{ children: React.ReactNode }>) {
   const queryClientRef = useRef<QueryClient>()
@@ -22,26 +20,15 @@ export default function LayoutClient({ children }: Readonly<{ children: React.Re
 
   return (
     <QueryClientProvider client={queryClientRef.current}>
-      <ThemeProvider attribute='class' defaultTheme='system' enableSystem disableTransitionOnChange>
+      <ThemeProvider attribute='class' defaultTheme='light' enableSystem disableTransitionOnChange>
         
-        <div className="flex min-h-screen flex-col bg-gray-50 dark:bg-slate-900 transition-colors duration-300">
-            <main className="flex-1">
+        <div className="flex min-h-[100dvh] flex-col bg-slate-50 dark:bg-slate-900 transition-colors duration-300 overflow-x-hidden">
+            <main className="flex-1 flex flex-col">
                 {children}
             </main>
         </div>
 
-        <ToastContainer
-          position='top-center'
-          autoClose={3000}
-          hideProgressBar={false}
-          newestOnTop
-          closeOnClick
-          pauseOnFocusLoss
-          draggable
-          pauseOnHover
-          theme='colored'
-        />
-        <Toaster position='top-center' />
+        <Toaster position='top-right' richColors closeButton expand={true} />
       </ThemeProvider>
     </QueryClientProvider>
   )

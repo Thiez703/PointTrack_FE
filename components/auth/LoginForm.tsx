@@ -13,6 +13,7 @@ import { motion } from "framer-motion";
 import { LoginSchema, LoginFormValues } from "@/app/types/auth.schema";
 import { AuthService } from "@/app/services/auth.service";
 import { useAuthStore } from "@/stores/useAuthStore";
+import { getErrorMessage } from "@/lib/axios";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -61,10 +62,10 @@ export default function LoginForm() {
     },
     onError: (error: any) => {
       const status = error?.response?.status;
-      const detail = error?.response?.data?.detail || error?.response?.data?.message || "";
+      const detail = getErrorMessage(error);
 
       if (status === 400) {
-        toast.error("Xác thực Captcha không hợp lệ hoặc dữ liệu sai định dạng");
+        toast.error(detail || "Xác thực Captcha không hợp lệ hoặc dữ liệu sai định dạng");
       } else if (status === 401) {
         if (detail.toLowerCase().includes("vô hiệu hóa")) {
           toast.error("Tài khoản đã bị vô hiệu hóa");
@@ -72,7 +73,7 @@ export default function LoginForm() {
           toast.error("Thông tin đăng nhập không hợp lệ (SĐT hoặc mật khẩu)");
         }
       } else {
-        toast.error(`Lỗi hệ thống (${status || 'Network Error'}), vui lòng thử lại.`);
+        toast.error(detail || `Lỗi hệ thống (${status || 'Network Error'}), vui lòng thử lại.`);
       }
 
       resetCaptcha();
@@ -140,29 +141,31 @@ export default function LoginForm() {
       </div>
 
       {/* Captcha - Cloudflare Turnstile */}
-      <div className="flex flex-col items-center py-2 min-h-[85px] relative">
+      <div className="flex flex-col items-center py-2 min-h-[65px] relative w-full overflow-hidden">
         {isCaptchaLoading && (
           <div className="absolute inset-0 flex items-center justify-center z-20 bg-white rounded-xl">
-            <div className="w-full h-[65px] bg-orange-50 rounded-xl border border-orange-100 flex items-center justify-center gap-3">
-              <div className="w-5 h-5 border-2 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
-              <span className="text-[12px] text-orange-600 font-bold uppercase tracking-tight">Đang xác thực hệ thống...</span>
+            <div className="w-full h-full min-h-[65px] bg-orange-50 rounded-xl border border-orange-100 flex items-center justify-center gap-3 px-4">
+              <div className="w-4 h-4 border-2 border-orange-200 border-t-orange-500 rounded-full animate-spin flex-shrink-0" />
+              <span className="text-[11px] sm:text-[12px] text-orange-600 font-bold uppercase tracking-tight truncate">Đang xác thực...</span>
             </div>
           </div>
         )}
-        <div className={`w-full flex justify-center min-h-[65px] transition-opacity duration-500 ${isCaptchaLoading ? 'opacity-0' : 'opacity-100'}`}>
-          <Turnstile
-            sitekey={SITE_KEY}
-            onLoad={() => setIsCaptchaLoading(false)}
-            onVerify={(token) => {
-              setValue("captchaToken", token, { shouldValidate: true });
-              clearErrors("captchaToken");
-            }}
-            onExpire={() => setValue("captchaToken", "", { shouldValidate: true })}
-            onError={() => {
-                setIsCaptchaLoading(false);
-                toast.error("Lỗi tải Captcha. Vui lòng làm mới trang.");
-            }}
-          />
+        <div className={`w-full flex justify-center transition-opacity duration-500 ${isCaptchaLoading ? 'opacity-0' : 'opacity-100'}`}>
+          <div className="scale-[0.85] sm:origin-center origin-center">
+            <Turnstile
+              sitekey={SITE_KEY}
+              onLoad={() => setIsCaptchaLoading(false)}
+              onVerify={(token) => {
+                setValue("captchaToken", token, { shouldValidate: true });
+                clearErrors("captchaToken");
+              }}
+              onExpire={() => setValue("captchaToken", "", { shouldValidate: true })}
+              onError={() => {
+                  setIsCaptchaLoading(false);
+                  toast.error("Lỗi tải Captcha. Vui lòng làm mới trang.");
+              }}
+            />
+          </div>
         </div>
         {errors.captchaToken && !isCaptchaLoading && (
           <p className="text-[11px] text-red-500 font-medium mt-1">{errors.captchaToken.message}</p>

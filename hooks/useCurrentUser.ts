@@ -10,15 +10,16 @@ export function useCurrentUser() {
     queryKey: ['tokenNext'],
     queryFn: () => AuthService.meTokenNext(),
     staleTime: Infinity,
-    retry: false
+    retry: false,
   })
 
+  // AuthService.me() now returns UserMeResponse (extracted from ApiResponse wrapper)
   const { data, isLoading } = useQuery({
     queryKey: ['currentUser', accessToken],
     queryFn: () => AuthService.me(),
     staleTime: 30000,
     enabled: !!accessToken,
-    refetchOnMount: true
+    refetchOnMount: true,
   })
 
   useEffect(() => {
@@ -35,6 +36,6 @@ export function useCurrentUser() {
 
   return {
     user: data,
-    isLoading: isLoadingToken || isLoading || (!!accessToken && !data)
+    isLoading: isLoadingToken || isLoading || (!!accessToken && !data),
   }
 }

@@ -15,7 +15,7 @@ export async function POST() {
     )
     return response
   }
-  const result = await AuthService.logout()
+  const result = await AuthService.logout(accessToken.value)
   const res200 = NextResponse.json(result, { status: 200 })
   res200.cookies.delete('accessToken')
   res200.cookies.delete('refreshToken')

@@ -1,5 +1,6 @@
 import { apiJava } from '@/lib/axios'
-import { UserType, SignupFormValues, ProfileFormValues, AvatarImage, EditProfileFormValues, ChangePasswordFormValues, AddressFormValues } from '@/app/types/user.schema'
+import { UserType, SignupFormValues, ProfileFormValues, AvatarImage, ChangePasswordFormValues, AddressFormValues } from '@/app/types/user.schema'
+type EditProfileFormValues = ProfileFormValues
 import { Client } from '@stomp/stompjs'
 
 export class UserService {

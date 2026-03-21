@@ -18,7 +18,7 @@ const monthlyWorkHistory = [
 ];
 
 export default function ProfilePage() {
-    const { user, setAuth } = useAuthStore();
+    const { userInfo: user, logout } = useAuthStore();
     const router = useRouter();
     const [editingField, setEditingField] = useState<string | null>(null);
     const [editValue, setEditValue] = useState('');
@@ -27,7 +27,7 @@ export default function ProfilePage() {
     const maxDays = Math.max(...monthlyWorkHistory.map(d => d.days), 1);
 
     const handleLogout = () => {
-        setAuth(null);
+        logout();
         toast.success('Đã đăng xuất');
         router.push('/login');
     };
@@ -43,7 +43,7 @@ export default function ProfilePage() {
                 </div>
                 <div className="relative z-10">
                     <h1 className="text-xl font-bold text-white mb-1">Hồ sơ cá nhân</h1>
-                    <p className="text-orange-100 text-xs">{user.id}</p>
+                    <p className="text-orange-100 text-xs">ID: {user.userId}</p>
                 </div>
             </div>
 

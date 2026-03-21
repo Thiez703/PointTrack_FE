@@ -1,45 +1,138 @@
 import { apiJava, apiNext } from '@/lib/axios'
-import { RegisterRequest, UserResponse, AuthResponse, LoginFormValues } from "@/app/types/auth.schema";
+import {
+  RegisterRequest,
+  UserResponse,
+  AuthResponse,
+  LoginFormValues,
+  UserMeResponse,
+} from "@/app/types/auth.schema";
 
 export class AuthService {
   private static readonly PREFIX = '/v1/auth'
 
-  // 1. Gọi trực tiếp Java BE (Dùng cho Server-side Proxy)
+  // ─── Direct Java BE calls (used in Next.js server-side proxy routes) ───
+
   static async loginJava(userData: LoginFormValues): Promise<AuthResponse> {
     const response = await apiJava.post<AuthResponse>(`${this.PREFIX}/login`, userData)
     return response.data
   }
 
   static async signupJava(userData: RegisterRequest): Promise<UserResponse> {
-    const response = await apiJava.post<UserResponse>(`${this.PREFIX}/signup`, userData);
-    return response.data;
+    const response = await apiJava.post<UserResponse>(`${this.PREFIX}/signup`, userData)
+    return response.data
   }
 
-  // 2. Gọi qua Next.js Proxy (Dùng cho LoginForm để set Cookie HttpOnly)
+  /** Called by /api/auth/refresh route — sends refreshToken, gets new tokens back */
+  static async refresh(refreshToken: string): Promise<AuthResponse> {
+    const response = await apiJava.post<AuthResponse>(`${this.PREFIX}/token/refresh`, { refreshToken })
+    return response.data
+  }
+
+  /** Called by /api/auth/logout route — requires token for server-side proxy */
+  static async logout(token?: string): Promise<void> {
+    await apiJava.post(
+      `${this.PREFIX}/logout`,
+      {},
+      token ? { headers: { Authorization: `Bearer ${token}` } } : {}
+    )
+  }
+
+  // ─── Via Next.js proxy (client-side, sets/clears HttpOnly cookies) ───
+
   static async login(userData: LoginFormValues): Promise<AuthResponse> {
     const response = await apiNext.post<AuthResponse>('/auth/login', userData)
     return response.data
   }
 
   static async register(userData: RegisterRequest): Promise<UserResponse> {
-    const response = await apiNext.post<UserResponse>('/auth/signup', userData);
-    return response.data;
+    const response = await apiNext.post<UserResponse>('/auth/signup', userData)
+    return response.data
   }
 
-  // 3. Các hàm lấy thông tin phiên
+  /** Called by axios interceptor when 401 — proxy handles cookie refresh */
+  static async refreshAuthTokenNext(): Promise<AuthResponse> {
+    const response = await apiNext.post<AuthResponse>('/auth/refresh')
+    return response.data
+  }
+
+  static async logoutNext(): Promise<void> {
+    await apiNext.post('/auth/logout')
+  }
+
+  // ─── Session info ───
+
+  static async meNext(): Promise<UserMeResponse> {
+    const response = await apiNext.get<UserMeResponse>('/auth/me')
+    return response.data
+  }
+
   static async meTokenNext(): Promise<AuthResponse> {
     const response = await fetch('/api/auth/me-token', {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' }
-    });
-    if (!response.ok) {
-      throw new Error('Failed to fetch token');
-    }
-    return response.json();
+      headers: { 'Content-Type': 'application/json' },
+    })
+    if (!response.ok) throw new Error('Failed to fetch token')
+    return response.json()
   }
 
-  static async me(): Promise<AuthResponse> {
-    const response = await apiJava.get<AuthResponse>(`${this.PREFIX}/me`)
+  /** Returns the logged-in user's profile (direct object per v1 spec) */
+  static async me(token?: string): Promise<UserMeResponse> {
+    const response = await apiJava.get<UserMeResponse>(
+      `${this.PREFIX}/me`,
+      token ? { headers: { Authorization: `Bearer ${token}` } } : {}
+    )
+    return response.data
+  }
+
+  /** GET /api/v1/auth/profile — returns the object directly (no wrapper) */
+  static async getProfile(): Promise<UserMeResponse> {
+    const response = await apiJava.get<UserMeResponse>(`${this.PREFIX}/profile`)
+    return response.data
+  }
+
+  static async updateProfile(data: {
+    phoneNumber?: string
+    avatarUrl?: string
+  }): Promise<UserMeResponse> {
+    const response = await apiJava.put<UserMeResponse>(`${this.PREFIX}/profile`, data)
+    return response.data
+  }
+
+  // ─── Password management ───
+
+  static async forgotPassword(email: string): Promise<{ message: string }> {
+    const response = await apiJava.post<{ message: string }>(
+      `${this.PREFIX}/password/forgot`,
+      { email }
+    )
+    return response.data
+  }
+
+  static async resetPassword(data: {
+    token: string
+    newPassword: string
+    confirmPassword: string
+  }): Promise<void> {
+    await apiJava.put(`${this.PREFIX}/password/reset`, data)
+  }
+
+  static async changePassword(data: {
+    currentPassword: string
+    newPassword: string
+    confirmPassword: string
+  }): Promise<void> {
+    await apiJava.put(`${this.PREFIX}/password/change`, data)
+  }
+
+  /** Called when forcePasswordChange === true — returns new AuthResponse */
+  static async firstChangePassword(data: {
+    newPassword: string
+    confirmPassword: string
+  }): Promise<AuthResponse> {
+    const response = await apiJava.put<AuthResponse>(
+      `${this.PREFIX}/password/first-change`,
+      data
+    )
     return response.data
   }
 }

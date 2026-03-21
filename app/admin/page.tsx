@@ -1,175 +1,100 @@
 "use client";
 
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from "framer-motion";
 import { 
-  LayoutDashboard, 
-  Settings, 
-  BarChart3, 
-  Heart, 
+  Users, 
+  MapPin, 
+  Clock, 
   CalendarCheck, 
-  ClipboardList, 
-  Clock,
-  UserCheck,
-  Menu,
-  X
-} from 'lucide-react';
+  TrendingUp, 
+  ArrowUpRight,
+  ArrowDownRight,
+  Activity
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 
-export default function AdminPage() {
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+const stats = [
+  { label: "Nhân viên hoạt động", value: "1,284", trend: "+12%", up: true, icon: Users, color: "text-blue-600", bg: "bg-blue-50" },
+  { label: "Điểm khách hàng", value: "42", trend: "+2", up: true, icon: MapPin, color: "text-orange-600", bg: "bg-orange-50" },
+  { label: "Check-in hôm nay", value: "856", trend: "-5%", up: false, icon: CalendarCheck, color: "text-green-600", bg: "bg-green-50" },
+  { label: "Tỷ lệ đi muộn", value: "3.2%", trend: "-0.5%", up: true, icon: Clock, color: "text-purple-600", bg: "bg-purple-50" },
+];
 
-  const menuItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', active: true },
-    { icon: ClipboardList, label: 'Bảng công chi tiết' },
-    { icon: UserCheck, label: 'Quản lý nhân viên' },
-    { icon: BarChart3, label: 'Thống kê & Báo cáo' },
-    { icon: Clock, label: 'Cấu hình ca làm' },
-    { icon: Settings, label: 'Cài đặt hệ thống' },
-  ];
-
+export default function AdminDashboard() {
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col lg:flex-row font-sans overflow-x-hidden">
-      
-      {/* Mobile Header */}
-      <header className="lg:hidden flex items-center justify-between p-4 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-50">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-teal-600 rounded-lg flex items-center justify-center text-white">
-            <CalendarCheck size={18} />
-          </div>
-          <span className="font-black text-slate-800 dark:text-white text-sm tracking-tight">POINTTRACK</span>
+    <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      {/* Welcome Section */}
+      <div className="flex items-end justify-between">
+        <div>
+          <h1 className="text-4xl font-black text-gray-800 tracking-tight">Chào buổi sáng, Admin! 👋</h1>
+          <p className="text-gray-400 font-medium mt-2">Dưới đây là tóm tắt hoạt động của hệ thống PointTrack hôm nay.</p>
         </div>
-        <button 
-          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          className="p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-        >
-          {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-        </button>
-      </header>
+        <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-2xl border border-gray-100 shadow-sm text-sm font-bold text-gray-500">
+           <Activity className="w-4 h-4 text-green-500" />
+           Hệ thống: <span className="text-green-600">Ổn định</span>
+        </div>
+      </div>
 
-      {/* Sidebar - Đã hạ thấp xuống bằng padding và căn chỉnh top trên mobile */}
-      <AnimatePresence>
-        {(isMobileMenuOpen || typeof window !== 'undefined' && window.innerWidth >= 1024) && (
-          <motion.aside 
-            initial={{ x: -300, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: -300, opacity: 0 }}
-            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className={`
-              fixed inset-y-0 left-0 z-40 w-72 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col p-6
-              lg:relative lg:translate-x-0 lg:opacity-100 lg:flex lg:pt-14
-              ${isMobileMenuOpen ? 'flex shadow-2xl top-[65px]' : 'hidden'}
-            `}
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {stats.map((stat, i) => (
+          <motion.div 
+            key={i}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.1 }}
+            className="bg-white p-8 rounded-[32px] border border-gray-100 shadow-sm hover:shadow-md transition-all group"
           >
-            {/* Logo Section - Chỉ hiện trên Desktop */}
-            <div className="hidden lg:flex items-center gap-3 mb-12 px-2">
-              <div className="w-10 h-10 bg-teal-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-teal-200 dark:shadow-none">
-                <CalendarCheck size={24} />
+            <div className="flex items-start justify-between">
+              <div className={cn("p-4 rounded-2xl transition-colors", stat.bg, stat.color)}>
+                <stat.icon className="w-6 h-6" />
               </div>
-              <div className="flex flex-col">
-                <span className="font-black text-slate-800 dark:text-white tracking-tight leading-none text-xl">POINTTRACK</span>
-                <span className="text-[10px] text-teal-600 font-bold uppercase tracking-widest mt-1">Timekeeping</span>
+              <div className={cn(
+                "flex items-center gap-1 text-xs font-black px-2 py-1 rounded-lg",
+                stat.up ? "text-green-600 bg-green-50" : "text-red-600 bg-red-50"
+              )}>
+                {stat.up ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                {stat.trend}
               </div>
             </div>
             
-            <nav className="flex-1 space-y-1.5 overflow-y-auto">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 px-4">Menu Chính</p>
-              {menuItems.map((item, idx) => (
-                <div 
-                  key={idx} 
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className={`flex items-center gap-3 px-4 py-3.5 rounded-2xl font-bold text-sm transition-all cursor-pointer ${
-                    item.active 
-                    ? 'bg-teal-600 text-white shadow-md shadow-teal-100 dark:shadow-none' 
-                    : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-200'
-                  }`}
-                >
-                  <item.icon size={18} />
-                  {item.label}
-                </div>
-              ))}
-            </nav>
-
-            <div className="mt-auto p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 mb-6 lg:mb-0">
-                <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-bold text-xs">AD</div>
-                    <div className="flex flex-col overflow-hidden">
-                        <span className="text-xs font-bold text-slate-800 dark:text-white truncate">Administrator</span>
-                        <span className="text-[10px] text-slate-500 truncate">admin@pointtrack.vn</span>
-                    </div>
-                </div>
+            <div className="mt-6">
+              <h3 className="text-3xl font-black text-gray-800 tracking-tight">{stat.value}</h3>
+              <p className="text-gray-400 text-sm font-bold mt-1 uppercase tracking-wider">{stat.label}</p>
             </div>
-          </motion.aside>
-        )}
-      </AnimatePresence>
+          </motion.div>
+        ))}
+      </div>
 
-      {/* Backdrop for Mobile Menu */}
-      {isMobileMenuOpen && (
-        <div 
-          className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-30 lg:hidden top-[65px]"
-          onClick={() => setIsMobileMenuOpen(false)}
-        />
-      )}
+      {/* Charts / Secondary Info Placeholder */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+         <div className="lg:col-span-2 bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm min-h-[400px] flex flex-col">
+            <div className="flex items-center justify-between mb-8">
+               <h3 className="text-xl font-black text-gray-800 flex items-center gap-2">
+                  <TrendingUp className="w-6 h-6 text-orange-500" />
+                  Biểu đồ Chấm công tuần qua
+               </h3>
+               <select className="bg-gray-50 border-none rounded-xl text-xs font-bold px-4 py-2 outline-none">
+                  <option>7 ngày gần nhất</option>
+                  <option>30 ngày gần nhất</option>
+               </select>
+            </div>
+            <div className="flex-1 border-2 border-dashed border-gray-100 rounded-3xl flex items-center justify-center text-gray-300 font-bold italic">
+               [ Biểu đồ thống kê sẽ hiển thị tại đây ]
+            </div>
+         </div>
 
-      {/* Main Content Area */}
-      <main className="flex-1 p-4 md:p-8 lg:p-12 flex flex-col items-center justify-center relative overflow-hidden bg-white dark:bg-slate-950 min-h-[calc(100vh-64px)] lg:min-h-screen">
-        
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[500px] aspect-square bg-teal-500/5 rounded-full blur-[100px] pointer-events-none" />
-
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5 }}
-          className="z-10 text-center w-full max-w-4xl"
-        >
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 text-[10px] font-black uppercase tracking-[0.2em] mb-6 border border-teal-100 dark:border-teal-800 shadow-sm">
-            <span className="w-2 h-2 bg-teal-500 rounded-full animate-ping"></span>
-            Attendance Online
-          </div>
-
-          <h1 className="text-4xl sm:text-6xl md:text-8xl lg:text-9xl font-black text-slate-900 dark:text-white mb-6 tracking-tighter leading-tight sm:leading-none">
-            Cố lên <br className="sm:hidden" /> 
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-teal-600 via-emerald-500 to-teal-600 animate-gradient-x">
-              các em!
-            </span>
-          </h1>
-
-          <p className="text-slate-500 dark:text-slate-400 text-base sm:text-lg md:text-2xl font-medium mb-10 flex items-center justify-center gap-2 sm:gap-3">
-            Hệ thống đã sẵn sàng <Heart className="fill-red-500 text-red-500 animate-bounce w-5 h-5 sm:w-7 sm:h-7" />
-          </p>
-
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 w-full max-w-2xl mx-auto px-2">
-            {[
-                { label: 'Đúng giờ', value: '85%', color: 'text-teal-600' },
-                { label: 'Đi muộn', value: '12', color: 'text-orange-500' },
-                { label: 'Vắng mặt', value: '03', color: 'text-red-500' }
-            ].map((stat, i) => (
-              <div key={i} className={`p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm ${i === 2 ? 'col-span-2 md:col-span-1' : ''}`}>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{stat.label}</p>
-                <p className={`text-xl sm:text-2xl font-black ${stat.color}`}>{stat.value}</p>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-
-        <div className="mt-12 lg:absolute lg:bottom-8 text-center px-6">
-          <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold leading-relaxed">
-            Hệ thống Quản lý Chấm công PointTrack <br className="lg:hidden" />
-            Phát triển cho bộ môn React • 2026
-          </p>
-        </div>
-      </main>
-
-      <style jsx global>{`
-        @keyframes gradient-x {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
-        }
-        .animate-gradient-x {
-          background-size: 200% auto;
-          animation: gradient-x 3s linear infinite;
-        }
-      `}</style>
+         <div className="bg-orange-500 p-8 rounded-[40px] shadow-xl shadow-orange-100 text-white flex flex-col relative overflow-hidden group">
+            <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700"></div>
+            
+            <h3 className="text-2xl font-black leading-tight relative z-10">Tối ưu hóa <br/>quản lý nhân sự</h3>
+            <p className="text-orange-100 text-sm font-medium mt-4 relative z-10">Sử dụng AI để dự báo nhu cầu nhân lực và tự động xếp ca làm việc thông minh.</p>
+            
+            <button className="mt-auto bg-white text-orange-600 font-black py-4 rounded-2xl text-sm shadow-lg active:scale-95 transition-all relative z-10">
+               KHÁM PHÁ NGAY
+            </button>
+         </div>
+      </div>
     </div>
   );
 }

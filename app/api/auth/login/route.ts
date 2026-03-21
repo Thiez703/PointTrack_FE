@@ -1,5 +1,5 @@
 import { AuthService } from '@/app/services/auth.service'
-import { LoginFormValues } from '@/app/types/user.schema'
+import { LoginFormValues } from '@/app/types/auth.schema'
 import { AxiosError } from 'axios'
 import { jwtDecode, JwtPayload } from 'jwt-decode'
 import { NextResponse } from 'next/server'
@@ -9,10 +9,16 @@ export async function POST(request: Request) {
   try {
     const res = await AuthService.loginJava(req)
 
-    const accessToken = jwtDecode<JwtPayload>(res.accessToken)
-    const expiresDateAccessToken =
-      typeof accessToken.exp === 'number'
-        ? new Date(accessToken.exp * 1000)
+    const accessDecoded = jwtDecode<JwtPayload>(res.accessToken)
+    const accessExpiry =
+      typeof accessDecoded.exp === 'number'
+        ? new Date(accessDecoded.exp * 1000)
+        : new Date(Date.now() + 60 * 60 * 1000)
+
+    const refreshDecoded = jwtDecode<JwtPayload>(res.refreshToken)
+    const refreshExpiry =
+      typeof refreshDecoded.exp === 'number'
+        ? new Date(refreshDecoded.exp * 1000)
         : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
 
     const response = NextResponse.json(res, { status: 200 })
@@ -22,31 +28,43 @@ export async function POST(request: Request) {
       value: res.accessToken,
       path: '/',
       httpOnly: true,
-      expires: expiresDateAccessToken,
+      expires: accessExpiry,
       sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production'
+      secure: process.env.NODE_ENV === 'production',
     })
-
-    const refreshToken = jwtDecode<JwtPayload>(res.refreshToken)
-    const expiresDateRefreshToken =
-      typeof refreshToken.exp === 'number'
-        ? new Date(refreshToken.exp * 1000)
-        : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
 
     response.cookies.set({
       name: 'refreshToken',
       value: res.refreshToken,
       path: '/',
       httpOnly: true,
-      expires: expiresDateRefreshToken,
+      expires: refreshExpiry,
       sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production'
+      secure: process.env.NODE_ENV === 'production',
     })
+
+    // Signal middleware to lock the user into the password-change page
+    if (res.forcePasswordChange) {
+      response.cookies.set({
+        name: 'forcePasswordChange',
+        value: 'true',
+        path: '/',
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+      })
+    } else {
+      // Clear any stale forcePasswordChange cookie
+      response.cookies.delete('forcePasswordChange')
+    }
 
     return response
   } catch (e) {
     if (e instanceof AxiosError) {
-      return NextResponse.json({ message: e.message }, { status: e.status || 500 })
+      return NextResponse.json(
+        { message: e.response?.data?.message || e.message },
+        { status: e.response?.status || 500 }
+      )
     }
     return NextResponse.json({ message: 'Internal server error' }, { status: 500 })
   }

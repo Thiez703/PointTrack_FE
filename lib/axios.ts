@@ -68,6 +68,11 @@ const getErrorMessage = (error: AxiosError<any>) => {
   const data = error.response?.data
   if (!data) return 'Lỗi hệ thống, vui lòng thử lại.'
 
+  // Nếu có fieldErrors (từ spec BE v1), ghép chúng lại
+  if (Array.isArray(data.fieldErrors) && data.fieldErrors.length > 0) {
+    return data.fieldErrors.join(', ')
+  }
+
   return (
     data.detail ||
     data.message ||
@@ -80,7 +85,7 @@ const getErrorMessage = (error: AxiosError<any>) => {
 }
 
 const isAuthRefreshUrl = (url?: string | null) =>
-  !!url && url.includes('/api/auth/refresh')
+  !!url && (url.includes('/api/auth/refresh') || url.includes('/v1/auth/token/refresh'))
 
 const errorHandlers: Record<number | 'default', (error: AxiosError<any>) => Promise<never>> = {
   400: async (e) => Promise.reject(e),

@@ -1,30 +1,29 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-// Các trang chỉ dành cho người chưa đăng nhập (Auth pages)
+// Pages only for unauthenticated users
 const AUTH_PATHS = [
   '/login',
   '/signup',
   '/reset-password',
+  '/forgot-password',
 ]
 
-// Các trang yêu cầu phải đăng nhập (Private pages)
+// Pages that require authentication
 const PROTECTED_PATHS = [
   '/',
   '/profile',
-  '/edit-profile',
-  '/address',
-  '/orders',
-  '/ponds',
-  '/voucher',
-  '/ai-doctor',
-  '/cart',
+  '/checkin',
+  '/calendar',
+  '/exchange',
+  '/holiday',
+  '/auth/first-change-password',
 ]
 
 export function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname
 
-  // 1. Bỏ qua các đường dẫn static và api quan trọng
+  // Skip static files and Next.js internals
   if (
     path.startsWith('/_next') ||
     path.startsWith('/api') ||
@@ -34,19 +33,30 @@ export function middleware(req: NextRequest) {
     return NextResponse.next()
   }
 
-  const token = req.cookies.get('accessToken')?.value ?? req.cookies.get('refreshToken')?.value
+  const token =
+    req.cookies.get('accessToken')?.value ??
+    req.cookies.get('refreshToken')?.value
+
   const isAuthPath = AUTH_PATHS.some(p => path === p || path.startsWith(p + '/'))
-  
-  // Nếu là trang Auth (login/signup), cho phép vào (không redirect về '/' để tránh loop nếu token chết)
-  if (isAuthPath) {
-    return NextResponse.next()
-  }
 
-  const isProtectedPath = PROTECTED_PATHS.some(p => path === p || path.startsWith(p + '/')) || path.startsWith('/admin') || path.startsWith('/inventory')
+  // Always allow auth pages through (avoid redirect loops)
+  if (isAuthPath) return NextResponse.next()
 
-  // Nếu chưa đăng nhập mà vào trang yêu cầu tài khoản -> về trang login
+  const isProtectedPath =
+    PROTECTED_PATHS.some(p => path === p || path.startsWith(p + '/')) ||
+    path.startsWith('/admin')
+
+  // Redirect unauthenticated users to login
   if (!token && isProtectedPath) {
     return NextResponse.redirect(new URL('/login', req.url))
+  }
+
+  // If forcePasswordChange cookie is set, lock user to the first-change-password page
+  if (token) {
+    const forceChange = req.cookies.get('forcePasswordChange')?.value
+    if (forceChange === 'true' && path !== '/auth/first-change-password') {
+      return NextResponse.redirect(new URL('/auth/first-change-password', req.url))
+    }
   }
 
   return NextResponse.next()
