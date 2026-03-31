@@ -37,11 +37,11 @@ Service files in `app/services/` use `apiNext` for client-side calls. Next.js AP
 
 ### Authentication Flow
 
-1. Login via `POST /api/auth/login` (Next.js proxy) → calls Spring Boot → decodes JWT → sets HttpOnly cookies (`accessToken`, `refreshToken`)
+1. Login via `POST /api/v1/auth/login` (Next.js proxy) → calls Spring Boot → decodes JWT → sets HttpOnly cookies (`accessToken`, `refreshToken`)
 2. Auth state stored in **Zustand** (`stores/useAuthStore.ts`): userId, fullName, role, email, phone, avatar, tokens
 3. Tokens also synced to localStorage via `lib/tokenUtils`
 4. On page load, `components/providers/UserInitializer.tsx` calls `useCurrentUser()` hook to restore session from cookies
-5. Token refresh: Axios 401 interceptor calls `POST /api/auth/refresh` and retries the original request
+5. Token refresh: Axios 401 interceptor calls `POST /api/v1/auth/refresh` and retries the original request
 
 ### State Management
 

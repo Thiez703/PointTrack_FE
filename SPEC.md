@@ -169,8 +169,8 @@ app/
 
 ### 4.1 Đăng nhập
 1. User nhập số điện thoại + mật khẩu + CAPTCHA Turnstile
-2. `LoginForm` gọi `AuthService.login()` → `POST /api/auth/login` (Next.js proxy)
-3. Next.js API route `app/api/auth/login/route.ts`:
+2. `LoginForm` gọi `AuthService.login()` → `POST /api/v1/auth/login` (Next.js proxy)
+3. Next.js API route `app/api/v1/auth/login/route.ts`:
    - Gọi `AuthService.loginJava()` → `POST /v1/auth/login` (Spring Boot trực tiếp)
    - Decode JWT để lấy `exp`
    - Set HttpOnly cookies: `accessToken` (expires = JWT exp), `refreshToken` (expires = JWT exp)
@@ -186,7 +186,7 @@ app/
 ### 4.2 Khôi phục session (Page reload)
 1. `components/providers/UserInitializer.tsx` mount khi app load
 2. Gọi `useCurrentUser()` hook:
-   - `AuthService.meTokenNext()` → `GET /api/auth/me-token` → trả `AuthResponse` từ cookie
+   - `AuthService.meTokenNext()` → `GET /api/v1/auth/me-token` → trả `AuthResponse` từ cookie
    - `AuthService.me(accessToken)` → `GET /v1/auth/me` → trả user profile đầy đủ
 3. Sync data vào Zustand (`setUserDetail`, `setAccessAndRefreshToken`)
 4. Sync tokens vào localStorage (cho `apiJava` interceptor)
@@ -194,7 +194,7 @@ app/
 ### 4.3 Refresh Token
 1. `apiJava` response interceptor nhận 401
 2. Nếu không phải đang refresh → đặt `isRefreshing = true`, thêm request vào queue
-3. Gọi `POST /api/auth/refresh` (Next.js proxy):
+3. Gọi `POST /api/v1/auth/refresh` (Next.js proxy):
    - Lấy `refreshToken` từ cookie
    - Gọi `AuthService.refresh(refreshToken)` → Spring Boot
    - Decode tokens mới, set cookies mới
@@ -204,7 +204,7 @@ app/
 5. Nếu refresh thất bại → `logout()`, redirect `/login`
 
 ### 4.4 Đăng xuất
-1. Gọi `AuthService.logoutNext()` → `POST /api/auth/logout`
+1. Gọi `AuthService.logoutNext()` → `POST /api/v1/auth/logout`
 2. Next.js API route xóa cookies `accessToken` + `refreshToken`
 3. Gọi `AuthService.logout()` với token (best-effort, tiếp tục dù fail)
 4. Zustand `logout()`: xóa localStorage, reset store
@@ -214,7 +214,7 @@ app/
 1. Middleware bắt cookie `forcePasswordChange=true` → redirect `/auth/first-change-password`
 2. User điền mật khẩu mới (Zod validation: min 8 chars, 1 uppercase, 1 digit)
 3. Gọi `AuthService.firstChangePassword()` → `PUT /v1/auth/password/first-change`
-4. Gọi `POST /api/auth/clear-force-password` → xóa cookie `forcePasswordChange`
+4. Gọi `POST /api/v1/auth/clear-force-password` → xóa cookie `forcePasswordChange`
 5. Redirect `/`
 
 ### 4.6 Quên mật khẩu / Reset qua OTP
@@ -273,12 +273,12 @@ Tất cả service files nằm trong `app/services/`, dùng `apiNext` cho client
 | Method | HTTP | Endpoint | Mô tả |
 |---|---|---|---|
 | `loginJava(userData)` | POST | `/v1/auth/login` | Đăng nhập trực tiếp Spring Boot |
-| `login(userData)` | POST | `/api/auth/login` | Đăng nhập qua Next.js proxy (set cookie) |
+| `login(userData)` | POST | `/api/v1/auth/login` | Đăng nhập qua Next.js proxy (set cookie) |
 | `refresh(refreshToken)` | POST | `/v1/auth/token/refresh` | Làm mới token |
 | `logout(token?)` | POST | `/v1/auth/logout` | Đăng xuất khỏi backend |
-| `logoutNext()` | POST | `/api/auth/logout` | Xóa cookie qua Next.js proxy |
-| `meNext()` | GET | `/api/auth/me` | Lấy profile qua Next.js proxy |
-| `meTokenNext()` | GET | `/api/auth/me-token` | Lấy AuthResponse từ cookie |
+| `logoutNext()` | POST | `/api/v1/auth/logout` | Xóa cookie qua Next.js proxy |
+| `meNext()` | GET | `/api/v1/auth/me` | Lấy profile qua Next.js proxy |
+| `meTokenNext()` | GET | `/api/v1/auth/me-token` | Lấy AuthResponse từ cookie |
 | `me(token?)` | GET | `/v1/auth/me` | Lấy profile trực tiếp Spring Boot |
 | `getProfile()` | GET | `/v1/auth/profile` | Lấy profile đầy đủ |
 | `updateProfile(data)` | PUT | `/v1/auth/profile` | Cập nhật profile |
@@ -403,9 +403,9 @@ Tất cả service files nằm trong `app/services/`, dùng `apiNext` cho client
 
 ## 7. NEXT.JS API ROUTES (PROXY)
 
-Tất cả nằm trong `app/api/auth/`:
+Tất cả nằm trong `app/api/v1/auth/`:
 
-### `POST /api/auth/login` — `login/route.ts`
+### `POST /api/v1/auth/login` — `login/route.ts`
 **Input**: `{ phoneNumber, password, captchaToken }`
 **Logic**:
 1. Gọi `AuthService.loginJava()` → Spring Boot
@@ -418,7 +418,7 @@ Tất cả nằm trong `app/api/auth/`:
 
 ---
 
-### `POST /api/auth/logout` — `logout/route.ts`
+### `POST /api/v1/auth/logout` — `logout/route.ts`
 **Logic**:
 1. Xóa cookies `accessToken`, `refreshToken`
 2. Gọi `AuthService.logout()` với token (best-effort)
@@ -426,7 +426,7 @@ Tất cả nằm trong `app/api/auth/`:
 
 ---
 
-### `GET /api/auth/me` — `me/route.ts`
+### `GET /api/v1/auth/me` — `me/route.ts`
 **Logic**:
 1. Đọc `accessToken` từ cookie
 2. Nếu không có → 401
@@ -435,12 +435,12 @@ Tất cả nằm trong `app/api/auth/`:
 
 ---
 
-### `GET /api/auth/me-token` — `me-token/route.ts`
+### `GET /api/v1/auth/me-token` — `me-token/route.ts`
 **Logic**: Đọc `AuthResponse` từ cookies, trả về client
 
 ---
 
-### `POST /api/auth/refresh` — `refresh/route.ts`
+### `POST /api/v1/auth/refresh` — `refresh/route.ts`
 **Logic**:
 1. Đọc `refreshToken` từ cookie
 2. Nếu không có → 401
@@ -450,7 +450,7 @@ Tất cả nằm trong `app/api/auth/`:
 
 ---
 
-### `POST /api/auth/clear-force-password` — `clear-force-password/route.ts`
+### `POST /api/v1/auth/clear-force-password` — `clear-force-password/route.ts`
 **Logic**: Xóa cookie `forcePasswordChange`
 
 ---

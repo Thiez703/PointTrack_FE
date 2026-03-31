@@ -78,7 +78,7 @@ apiJava.interceptors.response.use(
 
       try {
         // Use vanilla axios to avoid triggering this interceptor again
-        const { data } = await axios.post('/api/auth/refresh', {}, { withCredentials: true })
+        const { data } = await axios.post('/api/v1/auth/refresh', {}, { withCredentials: true })
         const newToken = data?.accessToken as string | undefined
 
         if (newToken) {

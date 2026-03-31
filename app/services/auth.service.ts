@@ -15,13 +15,13 @@ export class AuthService {
     return response.data
   }
 
-  /** Called by /api/auth/refresh route — sends refreshToken, gets new tokens back */
+  /** Called by /api/v1/auth/refresh route — sends refreshToken, gets new tokens back */
   static async refresh(refreshToken: string): Promise<AuthResponse> {
     const response = await apiJava.post<AuthResponse>(`${this.PREFIX}/token/refresh`, { refreshToken })
     return response.data
   }
 
-  /** Called by /api/auth/logout route — requires token for server-side proxy */
+  /** Called by /api/v1/auth/logout route — requires token for server-side proxy */
   static async logout(token?: string): Promise<void> {
     await apiJava.post(
       `${this.PREFIX}/logout`,
@@ -33,29 +33,29 @@ export class AuthService {
   // ─── Via Next.js proxy (client-side, sets/clears HttpOnly cookies) ───
 
   static async login(userData: LoginFormValues): Promise<AuthResponse> {
-    const response = await apiNext.post<AuthResponse>('/auth/login', userData)
+    const response = await apiNext.post<AuthResponse>('/v1/auth/login', userData)
     return response.data
   }
 
   /** Called by axios interceptor when 401 — proxy handles cookie refresh */
   static async refreshAuthTokenNext(): Promise<AuthResponse> {
-    const response = await apiNext.post<AuthResponse>('/auth/refresh')
+    const response = await apiNext.post<AuthResponse>('/v1/auth/refresh')
     return response.data
   }
 
   static async logoutNext(): Promise<void> {
-    await apiNext.post('/auth/logout')
+    await apiNext.post('/v1/auth/logout')
   }
 
   // ─── Session info ───
 
   static async meNext(): Promise<UserMeResponse> {
-    const response = await apiNext.get<UserMeResponse>('/auth/me')
+    const response = await apiNext.get<UserMeResponse>('/v1/auth/me')
     return response.data
   }
 
   static async meTokenNext(): Promise<AuthResponse> {
-    const response = await fetch('/api/auth/me-token', {
+    const response = await fetch('/api/v1/auth/me-token', {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
     })
