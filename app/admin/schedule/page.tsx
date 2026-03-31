@@ -126,7 +126,9 @@ export default function SchedulingPage() {
         week: currentWeekStr, 
         employeeId: empId 
       })
-      setShiftsByEmployee(res.data)
+      // res is already response.data (ApiAttendanceResponse)
+      // and res.data is the actual content (Map or List)
+      setShiftsByEmployee(res.data as any)
     } catch (error) {
       toast.error('Không thể tải lịch làm việc')
     } finally {
