@@ -28,7 +28,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { toast } from 'sonner'
-import { formatToISODate, getDaysInWeek } from '@/lib/dateUtils'
+import { formatToISODate, getDaysInWeek, getWeekYearString } from '@/lib/dateUtils'
 
 // --- Helpers ---
 function getShiftPeriod(startTime: string): 'Sáng' | 'Chiều' | 'Đêm' {
@@ -119,13 +119,15 @@ export default function CalendarPage() {
   const days = getDaysInWeek(currentDate)
   const startDate = formatToISODate(days[0])
   const endDate = formatToISODate(days[6])
+  const currentWeekStr = getWeekYearString(currentDate)
 
   const { data: shiftsResponse, isLoading: shiftsLoading } = useQuery({
-    queryKey: ["shifts", "calendar", userId, startDate, endDate],
+    queryKey: ["shifts", "calendar", userId, startDate, endDate, currentWeekStr],
     queryFn: () => SchedulingService.getShifts({
       employeeId: userId,
       startDate,
       endDate,
+      week: currentWeekStr
     }),
     enabled: !!userId,
   })
@@ -143,8 +145,29 @@ export default function CalendarPage() {
 
   const shiftsByDate = useMemo(() => {
     const map: Record<string, ShiftSchema[]> = {}
-    const content = shiftsResponse?.data?.content || []
-    content.forEach(s => {
+    
+    // BE returns Map<String, List<Shift>> where key is employeeId
+    // If employeeId is passed, it might return { "1": [...] } 
+    // or if the envelope is ApiAttendanceResponse<T>, it's shiftsResponse.data
+    const data = shiftsResponse?.data as any
+    if (!data) return map
+
+    let allShifts: ShiftSchema[] = []
+    
+    if (Array.isArray(data)) {
+      allShifts = data
+    } else if (data.content && Array.isArray(data.content)) {
+      allShifts = data.content
+    } else if (typeof data === 'object') {
+      // It's a Map grouped by employeeId
+      Object.values(data).forEach((employeeShifts: any) => {
+        if (Array.isArray(employeeShifts)) {
+          allShifts.push(...employeeShifts)
+        }
+      })
+    }
+
+    allShifts.forEach(s => {
       if (!map[s.shiftDate]) map[s.shiftDate] = []
       map[s.shiftDate].push(s)
     })
