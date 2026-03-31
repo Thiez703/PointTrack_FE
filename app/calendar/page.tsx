@@ -22,13 +22,13 @@ import {
 import { SchedulingService } from '@/app/services/scheduling.service'
 import { ShiftStatus, type ShiftSchema } from '@/app/types/attendance.schema'
 import { cn } from '@/lib/utils'
-import { format, startOfWeek, addDays, isSameDay, parseISO, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns'
+import { format, addDays, isSameDay, parseISO, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns'
 import { vi } from 'date-fns/locale'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useAuthStore } from '@/stores/useAuthStore'
-import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { toast } from 'sonner'
+import { formatToISODate, getDaysInWeek } from '@/lib/dateUtils'
 
 // --- Helpers ---
 function getShiftPeriod(startTime: string): 'Sáng' | 'Chiều' | 'Đêm' {
@@ -53,11 +53,11 @@ const statusThemes = {
     label: 'Đã gán'
   },
   [ShiftStatus.CONFIRMED]: {
-    bg: 'bg-emerald-50/50',
-    border: 'border-emerald-100',
-    text: 'text-emerald-700',
-    accent: 'bg-emerald-600',
-    badge: 'bg-emerald-100 text-emerald-700',
+    bg: 'bg-blue-50/50',
+    border: 'border-blue-100',
+    text: 'text-blue-700',
+    accent: 'bg-blue-600',
+    badge: 'bg-blue-100 text-blue-700',
     label: 'Đã xác nhận'
   },
   [ShiftStatus.IN_PROGRESS]: {
@@ -107,7 +107,7 @@ const WEEKDAYS_SHORT = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
 
 export default function CalendarPage() {
   const { userInfo } = useAuthStore()
-  useCurrentUser() // Ensure user data is loaded
+  const userId = userInfo?.userId || userInfo?.id
   const router = useRouter()
   const queryClient = useQueryClient()
 
@@ -116,37 +116,25 @@ export default function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState<string>(TODAY_STR)
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  const dateRange = useMemo(() => {
-    let start, end;
-    if (viewMode === 'month') {
-      start = startOfMonth(currentDate);
-      end = endOfMonth(currentDate);
-    } else {
-      start = startOfWeek(currentDate, { weekStartsOn: 1 });
-      end = addDays(start, 6);
-    }
-    return {
-      startDate: format(start, 'yyyy-MM-dd'),
-      endDate: format(end, 'yyyy-MM-dd'),
-    };
-  }, [currentDate, viewMode]);
+  const days = getDaysInWeek(currentDate)
+  const startDate = formatToISODate(days[0])
+  const endDate = formatToISODate(days[6])
 
   const { data: shiftsResponse, isLoading: shiftsLoading } = useQuery({
-    queryKey: ['myShifts', userInfo?.userId, dateRange],
+    queryKey: ["shifts", "calendar", userId, startDate, endDate],
     queryFn: () => SchedulingService.getShifts({
-      employeeId: userInfo?.userId,
-      startDate: dateRange.startDate,
-      endDate: dateRange.endDate,
+      employeeId: userId,
+      startDate,
+      endDate,
     }),
-    enabled: !!userInfo?.userId,
-    staleTime: 5 * 60 * 1000,
+    enabled: !!userId,
   })
 
   const confirmMutation = useMutation({
     mutationFn: (shiftId: number) => SchedulingService.confirmShift(shiftId),
     onSuccess: () => {
       toast.success('Đã xác nhận ca làm việc!')
-      queryClient.invalidateQueries({ queryKey: ['myShifts'] })
+      queryClient.invalidateQueries({ queryKey: ['shifts', 'calendar'] })
     },
     onError: (error: any) => {
       toast.error(error?.response?.data?.message || 'Không thể xác nhận ca làm việc')
@@ -165,8 +153,7 @@ export default function CalendarPage() {
 
   // Week days for scroller
   const weekDays = useMemo(() => {
-    const start = startOfWeek(currentDate, { weekStartsOn: 1 })
-    return Array.from({ length: 7 }, (_, i) => addDays(start, i))
+    return getDaysInWeek(currentDate)
   }, [currentDate])
 
   // Calendar days for month view
