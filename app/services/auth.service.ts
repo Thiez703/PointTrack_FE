@@ -1,7 +1,5 @@
 import { apiJava, apiNext } from '@/lib/axios'
 import {
-  RegisterRequest,
-  UserResponse,
   AuthResponse,
   LoginFormValues,
   UserMeResponse,
@@ -14,11 +12,6 @@ export class AuthService {
 
   static async loginJava(userData: LoginFormValues): Promise<AuthResponse> {
     const response = await apiJava.post<AuthResponse>(`${this.PREFIX}/login`, userData)
-    return response.data
-  }
-
-  static async signupJava(userData: RegisterRequest): Promise<UserResponse> {
-    const response = await apiJava.post<UserResponse>(`${this.PREFIX}/signup`, userData)
     return response.data
   }
 
@@ -41,11 +34,6 @@ export class AuthService {
 
   static async login(userData: LoginFormValues): Promise<AuthResponse> {
     const response = await apiNext.post<AuthResponse>('/auth/login', userData)
-    return response.data
-  }
-
-  static async register(userData: RegisterRequest): Promise<UserResponse> {
-    const response = await apiNext.post<UserResponse>('/auth/signup', userData)
     return response.data
   }
 
@@ -100,16 +88,30 @@ export class AuthService {
 
   // ─── Password management ───
 
-  static async forgotPassword(email: string): Promise<{ message: string }> {
+  // UPDATE: forgotPassword dùng phoneNumber thay email
+  static async forgotPassword(phoneNumber: string): Promise<{ message: string }> {
     const response = await apiJava.post<{ message: string }>(
       `${this.PREFIX}/password/forgot`,
-      { email }
+      { phoneNumber }
     )
     return response.data
   }
 
-  static async resetPassword(data: {
-    token: string
+  // ADD: verifyOtp — bước 2 sau khi nhận OTP qua SMS
+  static async verifyOtp(
+    phoneNumber: string, 
+    otp: string
+  ): Promise<{ data: { resetToken: string }; message: string }> {
+    const response = await apiJava.post(
+      `${this.PREFIX}/password/verify-otp`,
+      { phoneNumber, otp }
+    )
+    return response.data
+  }
+
+  // UPDATE: resetPassword nhận resetToken thay vì email token
+  static async resetPasswordWithToken(data: {
+    resetToken: string
     newPassword: string
     confirmPassword: string
   }): Promise<void> {

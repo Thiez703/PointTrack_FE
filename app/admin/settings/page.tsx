@@ -17,13 +17,12 @@ export default function SettingsPage() {
   const { register, handleSubmit, formState: { errors } } = useForm({
     resolver: zodResolver(GracePeriodSchema),
     values: {
-      lateMinutes: settings?.data?.lateMinutes || 0,
-      earlyLeaveMinutes: settings?.data?.earlyLeaveMinutes || 0,
+      gracePeriodMinutes: settings?.data?.gracePeriodMinutes || 0,
     }
   });
 
   const mutation = useMutation({
-    mutationFn: AdminService.updateGracePeriod,
+    mutationFn: (data: { gracePeriodMinutes: number }) => AdminService.updateGracePeriod(data),
     onSuccess: () => toast.success("Cập nhật cấu hình thành công!"),
   });
 
@@ -47,23 +46,13 @@ export default function SettingsPage() {
           
           <form onSubmit={handleSubmit((data) => mutation.mutate(data))} className="space-y-4">
              <div>
-                <label className="text-sm font-bold text-gray-700 mb-2 block">Số phút cho phép đi muộn</label>
+                <label className="text-sm font-bold text-gray-700 mb-2 block">Số phút cho phép đi muộn / về sớm</label>
                 <input 
                   type="number" 
-                  {...register("lateMinutes", { valueAsNumber: true })}
+                  {...register("gracePeriodMinutes", { valueAsNumber: true })}
                   className="w-full bg-gray-50 border-none rounded-2xl py-3 px-4 font-bold text-gray-800 focus:ring-2 focus:ring-orange-100 outline-none"
                 />
-                {errors.lateMinutes && <p className="text-red-500 text-[11px] mt-1 font-bold">{errors.lateMinutes.message}</p>}
-             </div>
-
-             <div>
-                <label className="text-sm font-bold text-gray-700 mb-2 block">Số phút cho phép về sớm</label>
-                <input 
-                  type="number" 
-                  {...register("earlyLeaveMinutes", { valueAsNumber: true })}
-                  className="w-full bg-gray-50 border-none rounded-2xl py-3 px-4 font-bold text-gray-800 focus:ring-2 focus:ring-orange-100 outline-none"
-                />
-                {errors.earlyLeaveMinutes && <p className="text-red-500 text-[11px] mt-1 font-bold">{errors.earlyLeaveMinutes.message}</p>}
+                {errors.gracePeriodMinutes && <p className="text-red-500 text-[11px] mt-1 font-bold">{errors.gracePeriodMinutes.message}</p>}
              </div>
 
              <button 
@@ -77,7 +66,7 @@ export default function SettingsPage() {
           </form>
         </div>
 
-        {/* Penalty Rules Placeholder */}
+        {/* Penalty Rules */}
         <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm space-y-6">
            <div className="flex items-center gap-3 text-red-600 font-black uppercase tracking-widest text-xs">
              <AlertTriangle className="w-5 h-5" />
@@ -85,18 +74,32 @@ export default function SettingsPage() {
            </div>
            
            <div className="space-y-4">
-              {[
-                { name: "Đi muộn > 15p", fine: "50,000 VND" },
-                { name: "Vắng mặt không phép", fine: "100% Lương ngày" },
-                { name: "Quên check-out", fine: "20,000 VND" },
-              ].map((rule, i) => (
-                <div key={i} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100/50">
-                   <span className="font-bold text-gray-700 text-sm">{rule.name}</span>
-                   <span className="text-red-600 font-black text-sm">{rule.fine}</span>
+              {settings?.data?.penaltyRules && settings.data.penaltyRules.length > 0 ? (
+                settings.data.penaltyRules.map((rule, i) => (
+                  <div key={i} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100/50">
+                    <div className="flex flex-col">
+                      <span className="font-bold text-gray-700 text-sm">Đi muộn {'>'} {rule.minLateMinutes}p</span>
+                      <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Khấu trừ lương ca</span>
+                    </div>
+                    <span className="text-red-600 font-black text-sm">{rule.deductionPercent}%</span>
+                  </div>
+                ))
+              ) : (
+                <div className="py-10 text-center space-y-3 opacity-50 grayscale pointer-events-none">
+                  {[
+                    { name: "Đi muộn > 15p", fine: "5%" },
+                    { name: "Đi muộn > 30p", fine: "10%" },
+                    { name: "Vắng mặt", fine: "100%" },
+                  ].map((rule, i) => (
+                    <div key={i} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100/50">
+                       <span className="font-bold text-gray-700 text-sm">{rule.name}</span>
+                       <span className="text-red-600 font-black text-sm">{rule.fine}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
               <button className="w-full border-2 border-dashed border-gray-200 text-gray-400 font-bold py-4 rounded-2xl hover:border-orange-200 hover:text-orange-500 transition-all text-sm uppercase tracking-widest">
-                 + Thêm quy tắc mới
+                 + Cập nhật quy tắc
               </button>
            </div>
         </div>

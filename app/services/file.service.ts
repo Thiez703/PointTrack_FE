@@ -1,18 +1,21 @@
 import { apiJava } from '@/lib/axios'
 import { FileControlDetailType, FileControlType } from '../types/file.schema'
 
-export class FileService {
-  private static readonly PREFIX = '/files'
+export type TmpUploadResponse = {
+  success: boolean
+  data: { url: string }
+}
 
-  static async tmpUpload(body: FormData): Promise<FileControlDetailType> {
-    const response = await apiJava.post<FileControlDetailType>(`${this.PREFIX}/tmpUpload`, body, {
+export class FileService {
+  static async tmpUpload(body: FormData): Promise<TmpUploadResponse> {
+    const response = await apiJava.post<TmpUploadResponse>('/tmpUpload', body, {
       headers: { 'Content-Type': undefined }
     })
     return response.data
   }
 
   static async fileDownload(body: FileControlType): Promise<FileControlDetailType> {
-    const response = await apiJava.post<FileControlDetailType>(`${this.PREFIX}/download`, body)
+    const response = await apiJava.post<FileControlDetailType>('/files/download', body)
     return response.data
   }
 }

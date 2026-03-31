@@ -2,9 +2,10 @@ import { useQuery } from '@tanstack/react-query'
 import { AuthService } from '@/app/services/auth.service'
 import { useEffect } from 'react'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { tokenUtils } from '@/lib/tokenUtils'
 
 export function useCurrentUser() {
-  const { setUserDetail, accessToken, setAccessAndRefreshToken } = useAuthStore()
+  const { setUserDetail, setAccessAndRefreshToken } = useAuthStore()
 
   const { data: token, isLoading: isLoadingToken } = useQuery({
     queryKey: ['tokenNext'],
@@ -13,29 +14,39 @@ export function useCurrentUser() {
     retry: false,
   })
 
-  // AuthService.me() now returns UserMeResponse (extracted from ApiResponse wrapper)
   const { data, isLoading } = useQuery({
-    queryKey: ['currentUser', accessToken],
-    queryFn: () => AuthService.me(),
+    queryKey: ['currentUser', token?.accessToken],
+    queryFn: () => AuthService.me(token?.accessToken ?? undefined),
     staleTime: 30000,
-    enabled: !!accessToken,
+    enabled: !!token?.accessToken,
     refetchOnMount: true,
   })
 
   useEffect(() => {
     if (data) {
-      setUserDetail(data)
+      const userData = (data as any)?.data ?? data
+      setUserDetail({
+        id: userData.id,
+        userId: userData.id,
+        fullName: userData.fullName,
+        email: userData.email,
+        phoneNumber: userData.phoneNumber,
+        avatarUrl: userData.avatarUrl,
+        role: typeof userData.role === 'object' ? userData.role?.slug : userData.role,
+      })
     }
   }, [data, setUserDetail])
 
   useEffect(() => {
     if (token) {
       setAccessAndRefreshToken(token)
+      tokenUtils.setToken(token.accessToken)
+      tokenUtils.setRefreshToken(token.refreshToken)
     }
   }, [token, setAccessAndRefreshToken])
 
   return {
     user: data,
-    isLoading: isLoadingToken || isLoading || (!!accessToken && !data),
+    isLoading: isLoadingToken || isLoading || (!!token?.accessToken && !data),
   }
 }

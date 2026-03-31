@@ -4,38 +4,52 @@ import React from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { 
-    LogIn, Rocket, Briefcase, Clock, AlertTriangle, Bell,
+    LogIn, Rocket, Clock, AlertTriangle, Bell,
     ChevronRight, MapPin, Calendar, Shield, Smartphone, Users, Zap
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/stores/useAuthStore';
-import BottomNav from '@/components/common/BottomNav';
-import { useCurrentUser } from '@/hooks/useCurrentUser';
-
-// --- MOCK DATA ---
-const monthlyStats = { totalWorkDays: 22, otHours: 14.5, lateDays: 2 };
-const weeklyChartData = [
-    { day: 'T2', hours: 8 }, { day: 'T3', hours: 9.5 }, { day: 'T4', hours: 8 },
-    { day: 'T5', hours: 10 }, { day: 'T6', hours: 8 }, { day: 'T7', hours: 4 }, { day: 'CN', hours: 0 },
-];
-const notifications = [
-    { id: 1, title: 'Ca làm việc mới được phân công', message: 'Bạn được phân công ca sáng ngày 17/03/2026 tại KCN Tân Bình.', time: '10 phút trước', read: false, type: 'shift' },
-];
-const statCards = [
-    { label: 'Tổng công tháng', value: `${monthlyStats.totalWorkDays} ngày`, icon: Briefcase, color: 'from-orange-400 to-orange-500' },
-    { label: 'Giờ OT', value: `${monthlyStats.otHours} giờ`, icon: Clock, color: 'from-blue-400 to-blue-500' },
-    { label: 'Đi muộn', value: `${monthlyStats.lateDays} lần`, icon: AlertTriangle, color: 'from-red-400 to-red-500' },
-];
+import { useQuery } from '@tanstack/react-query';
+import { UserService } from '@/app/services/user.service';
+import { cn } from '@/lib/utils';
 
 export default function Home() {
-    const { userInfo: user } = useAuthStore();
-    const { isLoading } = useCurrentUser();
+    const { userInfo: authUser } = useAuthStore();
     const router = useRouter();
-    const maxHours = Math.max(...weeklyChartData.map(d => d.hours), 1);
 
-    if (isLoading) {
+    const { data: profileResponse, isLoading: isLoadingProfile } = useQuery({
+        queryKey: ['user', 'me'],
+        queryFn: () => UserService.getMe(),
+        enabled: !!authUser,
+    });
+
+    const user = profileResponse?.data;
+    const stats = user?.workStatistics;
+    const weeklyChartData = stats?.history || [
+        { month: 'T2', days: 0 }, { month: 'T3', days: 0 }, { month: 'T4', days: 0 },
+        { month: 'T5', days: 0 }, { month: 'T6', days: 0 }, { month: 'T7', days: 0 }, { month: 'CN', days: 0 },
+    ];
+
+    const maxHours = Math.max(...weeklyChartData.map(d => d.days), 1);
+
+    const notifications = [
+        { id: 1, title: 'Ca làm việc mới được phân công', message: 'Bạn được phân công ca sáng ngày 17/03/2026 tại KCN Tân Bình.', time: '10 phút trước', read: false, type: 'shift' },
+    ];
+
+    const formatCurrency = (amount: number) => {
+        return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+    };
+
+    const statCards = [
+        { label: 'Lương dự tính', value: formatCurrency(stats?.summary?.estimatedSalary || 0), icon: Zap, color: 'from-green-400 to-green-500' },
+        { label: 'Tổng giờ công', value: `${stats?.summary?.totalWorkHours || 0} giờ`, icon: Clock, color: 'from-blue-400 to-blue-500' },
+        { label: 'Đi muộn', value: `${stats?.summary?.lateDaysThisMonth || 0} lần`, icon: AlertTriangle, color: 'from-red-400 to-red-500' },
+    ];
+
+    // Chỉnh sửa điều kiện Loading: Hiển thị loading cho đến khi có dữ liệu user chi tiết
+    if (!!authUser && (isLoadingProfile || !user)) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-white">
+            <div className="min-h-screen flex items-center justify-center bg-white dark:bg-slate-950">
                 <div className="flex flex-col items-center gap-4">
                     <div className="w-12 h-12 border-4 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
                     <p className="text-orange-500 font-bold animate-pulse uppercase tracking-widest text-xs">Đang tải dữ liệu...</p>
@@ -44,8 +58,8 @@ export default function Home() {
         );
     }
 
-    // --- CASE 1: NOT LOGGED IN (RESPONSIVE LANDING PAGE) ---
-    if (!user) {
+    // --- CASE 1: NOT LOGGED IN ---
+    if (!authUser) {
         return (
             <div className="login-app-container min-h-screen flex flex-col bg-white overflow-x-hidden relative">
                 {/* Background Decor - Trải rộng trên Desktop */}
@@ -146,85 +160,230 @@ export default function Home() {
         );
     }
 
-    // --- CASE 2: LOGGED IN (DASHBOARD) - Luôn giữa 480px trên desktop để giữ Mobile Feel ---
+    // --- CASE 2: LOGGED IN (DASHBOARD) ---
     return (
-        <div className="bg-gray-100 min-h-screen">
-            <div className="max-w-[480px] mx-auto bg-white min-h-screen shadow-2xl relative pb-24">
-                <div className="bg-gradient-to-br from-orange-500 to-orange-600 pt-12 pb-20 px-5 rounded-b-[32px] relative overflow-hidden">
-                    <div className="absolute inset-0 opacity-10">
-                        <div className="absolute -top-12 -right-12 w-48 h-48 bg-white rounded-full" />
-                        <div className="absolute bottom-4 -left-8 w-32 h-32 bg-white rounded-full" />
-                    </div>
-                    <div className="relative z-10">
-                        <div className="flex items-center justify-between mb-1">
-                            <div>
-                                <p className="text-orange-100 text-sm">Xin chào,</p>
-                                <h1 className="text-xl font-bold text-white">{user.fullName || 'Người dùng'}</h1>
-                                <p className="text-orange-200 text-xs mt-0.5">{user.role} · {user.phoneNumber}</p>
-                            </div>
-                            <button onClick={() => router.push('/profile')} className="w-11 h-11 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-sm">
-                                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-300 to-orange-100 flex items-center justify-center text-sm font-bold text-orange-700">
+        <div className="flex-1 w-full pb-32 lg:pb-12">
+            <div className="w-full relative">
+                {/* Header Section - Modern Gradient & Responsive Design */}
+                <div className="bg-gradient-to-br from-orange-500 to-orange-600 pt-16 sm:pt-24 pb-32 sm:pb-48 px-6 sm:px-12 rounded-b-[60px] lg:rounded-b-[100px] relative overflow-hidden shadow-2xl">
+                    <div className="relative z-10 max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-10">
+                        <div className="flex items-center gap-6 sm:gap-8">
+                            <motion.button 
+                                whileHover={{ scale: 1.05, rotate: 5 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => router.push('/profile')} 
+                                className="w-20 h-20 sm:w-28 sm:h-28 rounded-[32px] sm:rounded-[40px] bg-white/20 p-1.5 flex items-center justify-center backdrop-blur-xl border border-white/30 shadow-2xl overflow-hidden group"
+                            >
+                                <div className="w-full h-full rounded-[24px] sm:rounded-[32px] bg-gradient-to-br from-orange-50 to-white flex items-center justify-center text-3xl sm:text-4xl font-black text-orange-600 transition-transform group-hover:scale-110">
                                     {(user.fullName || 'P').charAt(0)}
                                 </div>
-                            </button>
+                            </motion.button>
+                            <div>
+                                <motion.p 
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 0.8, y: 0 }}
+                                    className="text-orange-50 text-xs sm:text-sm font-black uppercase tracking-[0.3em] mb-2"
+                                >
+                                    Chào buổi sáng ✨
+                                </motion.p>
+                                <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tighter leading-none mb-3">{user.fullName || 'Người dùng'}</h1>
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <span className="px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-[10px] sm:text-xs font-black text-white border border-white/10 uppercase tracking-widest">{user.role}</span>
+                                    <div className="flex items-center gap-2 text-orange-100 text-xs sm:text-sm font-bold opacity-90">
+                                        <Smartphone size={14} className="opacity-70" />
+                                        {user.phoneNumber}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Top Highlights - Stats that look good on Desktop */}
+                        <div className="hidden lg:grid grid-cols-2 gap-6 min-w-[360px]">
+                             <div className="bg-white/10 backdrop-blur-xl rounded-[32px] p-6 border border-white/10 shadow-lg group hover:bg-white/15 transition-all">
+                                <p className="text-white/60 text-[10px] font-black uppercase tracking-widest mb-1">Công trong tháng</p>
+                                <div className="flex items-baseline gap-2">
+                                    <p className="text-white text-3xl font-black tracking-tighter">{stats?.summary?.totalWorkDaysThisMonth ?? 0}</p>
+                                    <p className="text-white/60 text-xs font-bold uppercase tracking-widest">Ngày</p>
+                                </div>
+                             </div>
+                             <div className="bg-white/10 backdrop-blur-xl rounded-[32px] p-6 border border-white/10 shadow-lg group hover:bg-white/15 transition-all">
+                                <p className="text-white/60 text-[10px] font-black uppercase tracking-widest mb-1">Giờ tăng ca</p>
+                                <div className="flex items-baseline gap-2">
+                                    <p className="text-white text-3xl font-black tracking-tighter">{stats?.summary?.otHoursThisMonth ?? 0}</p>
+                                    <p className="text-white/60 text-xs font-bold uppercase tracking-widest">Giờ</p>
+                                </div>
+                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div className="px-5 -mt-12 relative z-20">
-                    <div className="grid grid-cols-3 gap-3">
-                        {statCards.map((stat, i) => {
-                            const Icon = stat.icon;
-                            return (
-                                <motion.div key={stat.label} initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: i * 0.1 }} className="bg-white rounded-2xl p-3 shadow-sm border border-gray-50">
-                                    <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${stat.color} flex items-center justify-center mb-2`}><Icon className="w-4 h-4 text-white" /></div>
-                                    <p className="text-lg font-bold text-gray-800">{stat.value}</p>
-                                    <p className="text-[10px] text-gray-400 mt-0.5">{stat.label}</p>
-                                </motion.div>
-                            );
-                        })}
-                    </div>
-                </div>
-
-                <div className="px-5 mt-5">
-                    <motion.button whileTap={{ scale: 0.97 }} onClick={() => router.push('/checkin')} className="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-2xl p-4 flex items-center gap-4 shadow-lg shadow-orange-200/60">
-                        <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm"><MapPin className="w-6 h-6 text-white" /></div>
-                        <div className="flex-1 text-left"><p className="font-bold text-base">Chấm công ngay</p><p className="text-orange-100 text-xs mt-0.5">Nhấn để Check-in / Check-out</p></div>
-                        <ChevronRight className="w-5 h-5 text-orange-200" />
-                    </motion.button>
-                </div>
-
-                <div className="px-5 mt-5">
-                    <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.3 }} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-                        <div className="flex items-center justify-between mb-4"><h3 className="font-bold text-gray-800 text-sm">Sơ đồ công tuần này</h3><span className="text-xs text-orange-500 font-medium bg-orange-50 px-2 py-1 rounded-full">Tháng 3/2026</span></div>
-                        <div className="flex items-end justify-between gap-2 h-36">
-                            {weeklyChartData.map((d, i) => {
-                                const height = d.hours > 0 ? (d.hours / maxHours) * 100 : 4;
-                                const isToday = i === 5;
+                {/* Main Content Dashboard */}
+                <div className="max-w-7xl mx-auto px-6 sm:px-12 -mt-20 sm:-mt-28 relative z-20 grid grid-cols-1 lg:grid-cols-12 gap-8 pb-10">
+                    
+                    {/* LEFT COLUMN: Main Actions & Charts */}
+                    <div className="lg:col-span-8 space-y-8">
+                        
+                        {/* Quick Stats Grid - Better Balance */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 lg:gap-6">
+                            {statCards.map((stat, i) => {
+                                const Icon = stat.icon;
                                 return (
-                                    <div key={d.day} className="flex flex-col items-center flex-1 gap-1.5">
-                                        <span className="text-[10px] font-semibold text-gray-500">{d.hours > 0 ? `${d.hours}h` : '-'}</span>
-                                        <motion.div initial={{ height: 0 }} animate={{ height: `${height}%` }} transition={{ delay: 0.4 + i * 0.05 }} className={`w-full rounded-lg min-h-1 ${isToday ? 'bg-gradient-to-t from-orange-500 to-orange-400 shadow-sm shadow-orange-200' : d.hours > 0 ? 'bg-gradient-to-t from-orange-200 to-orange-100' : 'bg-gray-100'}`} />
-                                        <span className={`text-[11px] font-medium ${isToday ? 'text-orange-500' : 'text-gray-400'}`}>{d.day}</span>
-                                    </div>
+                                    <motion.div 
+                                        key={stat.label} 
+                                        initial={{ y: 20, opacity: 0 }} 
+                                        animate={{ y: 0, opacity: 1 }} 
+                                        transition={{ delay: i * 0.1, type: 'spring' }} 
+                                        className="bg-white dark:bg-slate-900 rounded-[32px] p-5 lg:p-7 shadow-xl shadow-gray-200/50 dark:shadow-none border border-gray-50 dark:border-slate-800 group hover:border-orange-200 transition-all cursor-default"
+                                    >
+                                        <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${stat.color} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-lg shadow-gray-100 dark:shadow-none`}>
+                                            <Icon className="w-6 h-6 text-white" />
+                                        </div>
+                                        <p className="text-[10px] lg:text-xs font-black text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-1">{stat.label}</p>
+                                        <p className="text-xl lg:text-2xl font-black text-gray-800 dark:text-white tracking-tighter">{stat.value}</p>
+                                    </motion.div>
                                 );
                             })}
                         </div>
-                    </motion.div>
-                </div>
 
-                <div className="px-5 mt-5">
-                    <div className="flex items-center justify-between mb-3"><h3 className="font-bold text-gray-800 text-sm flex items-center gap-2"><Bell className="w-4 h-4 text-orange-500" /> Thông báo mới</h3></div>
-                    <div className="space-y-3">
-                        {notifications.map((noti, i) => (
-                            <motion.div key={noti.id} initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.5 + i * 0.1 }} className={`bg-white rounded-xl p-3 border flex gap-3 ${!noti.read ? 'border-orange-100 bg-orange-50/30' : 'border-gray-100'}`}>
-                                <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-orange-100 text-orange-600"><Calendar className="w-4 h-4" /></div>
-                                <div className="flex-1 min-w-0"><p className="text-sm font-semibold text-gray-800 leading-tight">{noti.title}</p><p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{noti.message}</p><p className="text-[10px] text-gray-400 mt-1">{noti.time}</p></div>
-                            </motion.div>
-                        ))}
+                        {/* HIGH IMPACT ACTION: Check-in */}
+                        <motion.button
+                            whileHover={{ y: -8, scale: 1.01 }}
+                            whileTap={{ scale: 0.98 }} 
+                            onClick={() => router.push('/checkin')} 
+                            className="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-[40px] p-8 sm:p-10 flex items-center gap-8 shadow-2xl shadow-orange-200 dark:shadow-none border border-white/10 group relative overflow-hidden"
+                        >
+                            <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32 blur-3xl group-hover:bg-white/10 transition-all" />
+                            <div className="w-20 h-20 sm:w-24 sm:h-24 bg-white/20 rounded-[32px] flex items-center justify-center backdrop-blur-xl border border-white/30 group-hover:rotate-6 transition-all shadow-2xl">
+                                <MapPin className="w-10 h-10 sm:w-12 sm:h-12 text-white" />
+                            </div>
+                            <div className="flex-1 text-left relative z-10">
+                                <p className="font-black text-2xl sm:text-4xl tracking-tighter mb-2">Chấm công thông minh</p>
+                                <p className="text-orange-100 text-sm sm:text-base font-bold opacity-80 uppercase tracking-widest">Hệ thống GPS Đang sẵn sàng • Nhấn để bắt đầu</p>
+                            </div>
+                            <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center group-hover:translate-x-2 transition-transform shadow-xl">
+                                <ChevronRight className="w-7 h-7 text-white" strokeWidth={3} />
+                            </div>
+                        </motion.button>
+
+                        {/* Activity Chart Container */}
+                        <motion.div 
+                            initial={{ y: 20, opacity: 0 }} 
+                            animate={{ y: 0, opacity: 1 }} 
+                            transition={{ delay: 0.3 }} 
+                            className="bg-white dark:bg-slate-900 rounded-[40px] p-8 sm:p-12 border border-gray-50 dark:border-slate-800 shadow-2xl shadow-gray-200/50 dark:shadow-none"
+                        >
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 mb-12">
+                                <div>
+                                    <h3 className="font-black text-gray-800 dark:text-white text-2xl sm:text-3xl tracking-tighter">Biểu đồ công việc</h3>
+                                    <p className="text-gray-400 text-xs sm:text-sm font-black uppercase tracking-widest mt-2 flex items-center gap-2">
+                                        <Clock className="w-4 h-4 text-orange-500" />
+                                        Ghi nhận 7 ngày gần nhất
+                                    </p>
+                                </div>
+                                <div className="px-5 py-2.5 bg-orange-50 dark:bg-orange-500/10 rounded-2xl border border-orange-100 dark:border-orange-500/20">
+                                    <span className="text-sm font-black text-orange-600 dark:text-orange-500 uppercase tracking-widest">Tháng 3, 2026</span>
+                                </div>
+                            </div>
+                            
+                            <div className="flex items-end justify-between gap-4 sm:gap-8 h-64 sm:h-80 relative">
+                                {/* Chart Horizontal Lines */}
+                                <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-[0.03] dark:opacity-[0.05]">
+                                    {[...Array(5)].map((_, i) => <div key={i} className="w-full h-px bg-gray-900" />)}
+                                </div>
+
+                                {weeklyChartData.map((d, i) => {
+                                    const height = d.days > 0 ? (d.days / maxHours) * 100 : 4;
+                                    const isToday = i === 5;
+                                    return (
+                                        <div key={d.month} className="flex flex-col items-center flex-1 gap-4 group relative z-10">
+                                            <div className="w-full relative">
+                                                <motion.div 
+                                                    initial={{ height: 0 }} 
+                                                    animate={{ height: `${height}%` }} 
+                                                    transition={{ delay: 0.4 + i * 0.05, type: "spring", stiffness: 80 }} 
+                                                    className={cn(
+                                                        "w-full rounded-2xl sm:rounded-3xl transition-all duration-500 relative overflow-hidden",
+                                                        isToday 
+                                                            ? 'bg-gradient-to-t from-orange-600 to-orange-400 shadow-2xl shadow-orange-200 dark:shadow-none' 
+                                                            : d.days > 0 
+                                                                ? 'bg-gray-100 dark:bg-slate-800 group-hover:bg-orange-100 dark:group-hover:bg-orange-500/10' 
+                                                                : 'bg-gray-50 dark:bg-slate-900 border border-dashed border-gray-100 dark:border-slate-800'
+                                                    )} 
+                                                >
+                                                    {isToday && <div className="absolute top-0 left-0 right-0 h-1 bg-white/20" />}
+                                                </motion.div>
+                                            </div>
+                                            <span className={cn(
+                                                "text-[10px] sm:text-xs font-black uppercase tracking-widest transition-colors",
+                                                isToday ? 'text-orange-600 dark:text-orange-500' : 'text-gray-400 dark:text-slate-600 group-hover:text-gray-600'
+                                            )}>
+                                                {d.month}
+                                            </span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </motion.div>
+                    </div>
+
+                    {/* RIGHT COLUMN: Notifications & Services */}
+                    <div className="lg:col-span-4 space-y-8">
+                        
+                        {/* Modern Notifications Section */}
+                        <div className="bg-white dark:bg-slate-900 rounded-[40px] p-8 border border-gray-50 dark:border-slate-800 shadow-2xl shadow-gray-200/50 dark:shadow-none">
+                            <div className="flex items-center justify-between mb-8">
+                                <h3 className="font-black text-gray-800 dark:text-white text-xl tracking-tight flex items-center gap-3">
+                                    <Bell className="w-5 h-5 text-orange-500" />
+                                    Bản tin Point
+                                </h3>
+                                <div className="w-2 h-2 rounded-full bg-orange-500 animate-ping" />
+                            </div>
+                            <div className="space-y-5">
+                                {notifications.map((noti, i) => (
+                                    <motion.div 
+                                        key={noti.id} 
+                                        initial={{ x: 20, opacity: 0 }} 
+                                        animate={{ x: 0, opacity: 1 }} 
+                                        transition={{ delay: 0.5 + i * 0.1 }} 
+                                        className={cn(
+                                            "group rounded-[28px] p-5 border transition-all cursor-pointer relative overflow-hidden",
+                                            !noti.read 
+                                                ? 'border-orange-50 bg-orange-50/20 dark:border-orange-500/10 dark:bg-orange-500/5' 
+                                                : 'border-gray-50 bg-gray-50/50 dark:border-slate-800 dark:bg-slate-800/20 hover:bg-white dark:hover:bg-slate-800'
+                                        )}
+                                    >
+                                        <div className="flex gap-4 items-start">
+                                            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-white dark:bg-slate-800 shadow-sm text-orange-500 group-hover:scale-110 group-hover:rotate-3 transition-all">
+                                                <Calendar className="w-5 h-5" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-black text-gray-800 dark:text-white leading-tight mb-1">{noti.title}</p>
+                                                <p className="text-xs text-gray-500 dark:text-slate-400 font-bold leading-relaxed line-clamp-2">{noti.message}</p>
+                                                <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100/50 dark:border-slate-800/50">
+                                                    <Clock className="w-3 h-3 text-gray-400" />
+                                                    <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest">{noti.time}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                ))}
+                            </div>
+                            <button className="w-full mt-6 py-4 rounded-2xl bg-gray-50 dark:bg-slate-800 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 hover:text-orange-500 transition-colors">
+                                Xem tất cả thông báo
+                            </button>
+                        </div>
+
+                        {/* Quick Help / Community Card */}
+                        <div className="bg-slate-900 rounded-[40px] p-10 text-white shadow-2xl relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:rotate-12 group-hover:scale-110 transition-transform">
+                                <Shield className="w-32 h-32" />
+                            </div>
+                            <h4 className="text-2xl font-black mb-3 tracking-tighter">Hỗ trợ 24/7</h4>
+                            <p className="text-slate-400 text-sm font-bold leading-relaxed mb-8">Bạn gặp sự cố kỹ thuật? Chúng tôi luôn sẵn sàng hỗ trợ bất cứ lúc nào.</p>
+                            <button className="w-full py-5 bg-orange-500 text-white font-black rounded-[20px] hover:bg-orange-600 transition-all shadow-xl shadow-orange-500/20 active:scale-95">LIÊN HỆ QUẢN TRỊ VIÊN</button>
+                        </div>
                     </div>
                 </div>
-                <BottomNav />
             </div>
         </div>
     );

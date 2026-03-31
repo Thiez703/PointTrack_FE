@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -r \"useCustomer\\\\|useGeolocation\\\\|use-debounce\\\\|use-file-upload\" D:ThiezDuAnPointTrack_FE --include=*.tsx --include=*.ts)",
+      "Bash(wc:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(npx tsc:*)",
+      "Bash(cd:*)",
+      "Bash(ls -la /d/ThiezDuAn/PointTrack_FE/.env*)"
+    ]
+  }
+}

@@ -1,27 +1,35 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
-  MapPin,
   Camera,
-  CheckCircle,
-  LogOut,
   Navigation,
-  Wifi,
-  Clock,
-  Circle,
   AlertCircle,
   X,
-  Settings,
+  ArrowRight,
+  Loader2,
+  Calendar
 } from "lucide-react";
 import { toast } from "sonner";
-import BottomNav from "@/components/common/BottomNav";
 import { AttendanceService } from "@/app/services/attendance.service";
+import { SchedulingService } from "@/app/services/scheduling.service";
+import { FileService } from "@/app/services/file.service";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import type {
   CheckInResponse,
   CheckOutResponse,
+  ShiftSchema,
 } from "@/app/types/attendance.schema";
+import { format, isAfter } from "date-fns";
+import { vi } from "date-fns/locale";
+import { formatToISODate, getWeekYearString } from "@/lib/dateUtils";
+import { useAuthStore } from "@/stores/useAuthStore";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 
 type AttendanceStatus = "ON_TIME" | "LATE" | "PENDING_APPROVAL";
 
@@ -52,6 +60,8 @@ const STATUS_CONFIG: Record<
 const STORAGE_KEY = "pt_attendance_today";
 
 export default function CheckinPage() {
+  const { user } = useCurrentUser();
+  const { userInfo } = useAuthStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // GPS state
@@ -63,34 +73,47 @@ export default function CheckinPage() {
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
-  // Schedule config (expandable panel)
-  const [workScheduleId, setWorkScheduleId] = useState(1);
-  const [note, setNote] = useState("");
-  const [showConfig, setShowConfig] = useState(false);
-
   // Attendance state
   const [checkedIn, setCheckedIn] = useState(false);
-  const [attendanceRecordId, setAttendanceRecordId] = useState<number | null>(null);
+  const [activeShiftId, setActiveShiftId] = useState<number | null>(null);
   const [checkInResult, setCheckInResult] = useState<CheckInResponse | null>(null);
   const [checkOutResult, setCheckOutResult] = useState<CheckOutResponse | null>(null);
 
-  // Checkout reason (required if >30 min past shift end)
+  // Late handling
+  const [isLateDialogOpen, setIsLateDialogOpen] = useState(false);
+  const [lateReason, setLateReason] = useState("");
+  const [isCheckOutLateDialogOpen, setIsCheckOutLateDialogOpen] = useState(false);
   const [checkOutReason, setCheckOutReason] = useState("");
-  const [needsCheckOutReason, setNeedsCheckOutReason] = useState(false);
 
   // UI state
   const [isLoading, setIsLoading] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [mounted, setMounted] = useState(false);
 
-  // ─── Clock ───
+  const userId = userInfo?.userId || userInfo?.id;
+
+  const { data: shiftsData, isLoading: isFindingShift } = useQuery({
+    queryKey: ['shifts', 'today', userId],
+    queryFn: () => SchedulingService.getShifts({
+      employeeId: userId,
+      startDate: formatToISODate(new Date()),
+      endDate: formatToISODate(new Date()),
+    }),
+    enabled: !!userId,
+  });
+
+  const todayShifts = shiftsData?.data?.content ?? [];
+  const todayShift = todayShifts.find(s =>
+    ['ASSIGNED', 'CONFIRMED', 'IN_PROGRESS'].includes(s.status)
+  ) || null;
+
   useEffect(() => {
     setMounted(true);
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // ─── Restore today's check-in from localStorage ───
+  // Restore state
   useEffect(() => {
     if (!mounted) return;
     try {
@@ -99,7 +122,7 @@ export default function CheckinPage() {
         const parsed = JSON.parse(saved);
         if (parsed.date === new Date().toDateString() && parsed.checkedIn) {
           setCheckedIn(true);
-          setAttendanceRecordId(parsed.attendanceRecordId);
+          setActiveShiftId(parsed.shiftId);
           setCheckInResult(parsed.checkInResult);
         } else {
           localStorage.removeItem(STORAGE_KEY);
@@ -111,44 +134,27 @@ export default function CheckinPage() {
     requestGps();
   }, [mounted]);
 
-  // ─── GPS ───
   const requestGps = () => {
     setGpsLoading(true);
     setGpsError(null);
-
     if (!navigator.geolocation) {
       setGpsError("Thiết bị không hỗ trợ GPS");
       setGpsLoading(false);
       return;
     }
-
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setGps({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         setGpsLoading(false);
       },
       (err) => {
-        setGpsError(
-          err.code === err.PERMISSION_DENIED
-            ? "Vui lòng cấp quyền GPS cho ứng dụng"
-            : "Không thể lấy vị trí GPS"
-        );
+        setGpsError(err.code === 1 ? "Vui lòng cấp quyền GPS" : "Không thể lấy vị trí");
         setGpsLoading(false);
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
   };
 
-  // ─── Check if checkout reason is needed (>30 min past shift end) ───
-  // Default shift end = 17:00 since we don't have a schedule API yet
-  useEffect(() => {
-    if (!checkedIn) return;
-    const SHIFT_END_MIN = 17 * 60;
-    const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
-    setNeedsCheckOutReason(nowMin > SHIFT_END_MIN + 30);
-  }, [currentTime, checkedIn]);
-
-  // ─── Photo ───
   const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -156,7 +162,6 @@ export default function CheckinPage() {
     if (photoPreview) URL.revokeObjectURL(photoPreview);
     setPhotoPreview(URL.createObjectURL(file));
     toast.success("Đã chụp ảnh thành công!");
-    // Reset file input so same file can be re-selected
     e.target.value = "";
   };
 
@@ -166,83 +171,108 @@ export default function CheckinPage() {
     setPhotoPreview(null);
   };
 
-  // ─── Check-in ───
-  const handleCheckIn = async () => {
+  const onCheckInPress = () => {
+    if (!todayShift) return;
     if (!gps) { toast.error("Chưa xác định được vị trí GPS"); return; }
     if (!photoFile) { toast.error("Vui lòng chụp ảnh selfie trước khi check-in"); return; }
 
+    const [hours, minutes] = todayShift.startTime.split(':').map(Number);
+    const shiftStartTime = new Date();
+    shiftStartTime.setHours(hours, minutes, 0, 0);
+
+    if (isAfter(currentTime, shiftStartTime)) {
+      setIsLateDialogOpen(true);
+    } else {
+      handleCheckIn();
+    }
+  };
+
+  const handleCheckIn = async (reason?: string) => {
+    if (!todayShift) return;
     setIsLoading(true);
+    setIsLateDialogOpen(false);
+    
     try {
       const result = await AttendanceService.checkIn({
-        workScheduleId,
-        lat: gps.lat,
-        lng: gps.lng,
-        capturedAt: new Date().toISOString().substring(0, 19),
-        note: note || undefined,
+        workScheduleId: todayShift.id,
+        lat: gps!.lat,
+        lng: gps!.lng,
         photo: photoFile,
+        note: reason,
+        capturedAt: new Date().toISOString()
       });
 
       const rd = result.data;
       setCheckInResult(rd);
       setCheckedIn(true);
-      setAttendanceRecordId(rd.attendanceRecordId);
+      setActiveShiftId(todayShift.id);
 
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          date: new Date().toDateString(),
-          checkedIn: true,
-          attendanceRecordId: rd.attendanceRecordId,
-          checkInResult: rd,
-        })
-      );
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        date: new Date().toDateString(),
+        checkedIn: true,
+        shiftId: todayShift.id,
+        checkInResult: rd,
+      }));
 
       const msgs: Record<AttendanceStatus, string> = {
         ON_TIME: "Check-in thành công! Bạn đúng giờ ✅",
-        LATE: `Check-in muộn ${rd.lateMinutes} phút. Đơn giải trình đã được tạo tự động.`,
+        LATE: `Check-in muộn ${rd.lateMinutes} phút. Lương sẽ được tính sau khi Admin duyệt.`,
         PENDING_APPROVAL: "GPS không hợp lệ. Đã gửi yêu cầu chờ Admin duyệt.",
       };
       toast.success(msgs[rd.status]);
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Check-in thất bại, vui lòng thử lại.");
+      toast.error(err?.response?.data?.detail || "Check-in thất bại");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // ─── Check-out ───
-  const handleCheckOut = async () => {
-    if (!attendanceRecordId) { toast.error("Không tìm thấy dữ liệu check-in hôm nay"); return; }
+  const onCheckOutPress = () => {
+    if (!todayShift) return;
     if (!gps) { toast.error("Chưa xác định được vị trí GPS"); return; }
-    if (!photoFile) { toast.error("Vui lòng chụp ảnh trước khi check-out"); return; }
-    if (needsCheckOutReason && !checkOutReason.trim()) {
-      toast.error("Vui lòng nhập lý do check-out muộn");
-      return;
-    }
+    if (!photoFile) { toast.error("Vui lòng chụp ảnh selfie trước khi check-out"); return; }
 
+    const [hours, minutes] = todayShift.endTime.split(':').map(Number);
+    const shiftEndTime = new Date();
+    shiftEndTime.setHours(hours, minutes, 0, 0);
+    // Bắt buộc truyền nếu checkout muộn hơn 30 phút so với giờ kết thúc ca
+    const lateThreshold = new Date(shiftEndTime.getTime() + 30 * 60000);
+
+    if (isAfter(currentTime, lateThreshold)) {
+      setIsCheckOutLateDialogOpen(true);
+    } else {
+      handleCheckOut();
+    }
+  };
+
+  const handleCheckOut = async (reason?: string) => {
+    if (!checkInResult || !gps || !photoFile) return;
     setIsLoading(true);
+    setIsCheckOutLateDialogOpen(false);
     try {
       const result = await AttendanceService.checkOut({
-        attendanceRecordId,
+        attendanceRecordId: checkInResult.attendanceRecordId,
         lat: gps.lat,
         lng: gps.lng,
-        capturedAt: new Date().toISOString().substring(0, 19),
-        checkOutReason: checkOutReason || undefined,
         photo: photoFile,
+        capturedAt: new Date().toISOString(),
+        checkOutReason: reason
       });
 
       setCheckOutResult(result.data);
       setCheckedIn(false);
       clearPhoto();
       localStorage.removeItem(STORAGE_KEY);
-      toast.success(result.data.message || "Check-out thành công!");
+      toast.success("Check-out thành công!");
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Check-out thất bại, vui lòng thử lại.");
+      toast.error("Check-out thất bại");
     } finally {
       setIsLoading(false);
     }
   };
 
+  const isCheckInDisabled = !todayShift || checkedIn || isLoading || !gps || !photoFile;
+  const isCheckOutDisabled = !checkedIn || isLoading || !gps || !photoFile;
   const statusCfg = checkInResult ? STATUS_CONFIG[checkInResult.status] : null;
 
   return (
@@ -251,302 +281,212 @@ export default function CheckinPage() {
       <div className="bg-gradient-to-br from-orange-500 to-orange-600 pt-12 pb-5 px-5 rounded-b-[28px]">
         <h1 className="text-xl font-bold text-white mb-1">Chấm công</h1>
         <p className="text-orange-100 text-xs">
-          {mounted ? currentTime.toLocaleDateString("vi-VN", {
-            weekday: "long",
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
-          }) : "Đang tải..."}
+          {mounted ? format(currentTime, 'EEEE, dd/MM/yyyy', { locale: vi }) : "Đang tải..."}
         </p>
       </div>
 
       <div className="px-5 mt-4">
-        {/* Map visual */}
-        <div className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
-          <div className="relative h-52 bg-gradient-to-br from-green-100 via-green-50 to-blue-50 overflow-hidden">
-            <div className="absolute inset-0 opacity-20">
-              {[...Array(8)].map((_, i) => (
-                <div key={`h-${i}`} className="absolute w-full h-px bg-gray-400" style={{ top: `${(i + 1) * 12}%` }} />
-              ))}
-              {[...Array(6)].map((_, i) => (
-                <div key={`v-${i}`} className="absolute h-full w-px bg-gray-400" style={{ left: `${(i + 1) * 15}%` }} />
-              ))}
-            </div>
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-              <motion.div
-                animate={{ scale: [1, 1.1, 1] }}
-                transition={{ duration: 2, repeat: Infinity }}
-                className="w-32 h-32 rounded-full bg-orange-500/10 border-2 border-dashed border-orange-300 flex items-center justify-center"
-              >
-                <div className="w-20 h-20 rounded-full bg-orange-500/15 flex items-center justify-center">
-                  <div className="w-4 h-4 rounded-full bg-orange-500 shadow-lg" />
-                </div>
-              </motion.div>
-            </div>
-            {gps && (
-              <motion.div
-                animate={{ y: [0, -3, 0] }}
-                transition={{ duration: 1.5, repeat: Infinity }}
-                className="absolute top-[48%] left-[52%] -translate-x-1/2 -translate-y-1/2 z-10"
-              >
-                <div className="relative">
-                  <div className="w-10 h-10 rounded-full bg-blue-500 border-2 border-white shadow-lg flex items-center justify-center">
-                    <Navigation className="w-5 h-5 text-white fill-white" />
-                  </div>
-                  <motion.div
-                    animate={{ scale: [1, 1.5, 1], opacity: [0.5, 0, 0.5] }}
-                    transition={{ duration: 1.5, repeat: Infinity }}
-                    className="absolute -inset-2 rounded-full bg-blue-400/30"
-                  />
-                </div>
-              </motion.div>
+        {/* Today's Shift Card */}
+        <div className="bg-white rounded-[24px] p-5 border border-gray-100 shadow-sm mb-4">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Ca làm hôm nay</h2>
+            {isFindingShift ? (
+               <span className="text-[9px] font-bold bg-gray-50 text-gray-400 px-2 py-0.5 rounded-full uppercase animate-pulse">Đang tải...</span>
+            ) : todayShift ? (
+              <span className="text-[9px] font-bold bg-green-50 text-green-600 px-2 py-0.5 rounded-full uppercase">Đã gán ca</span>
+            ) : (
+              <span className="text-[9px] font-bold bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full uppercase tracking-widest">Không có ca</span>
             )}
-            <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm rounded-lg px-2 py-1 text-[10px] font-medium text-gray-600 shadow-sm">
-              📍 KCN Tân Bình
-            </div>
           </div>
+
+          {isFindingShift ? (
+            <div className="flex items-center gap-4 animate-pulse">
+               <div className="w-12 h-12 rounded-2xl bg-gray-100" />
+               <div className="w-4 h-4 bg-gray-50" />
+               <div className="flex-1 space-y-2">
+                 <div className="h-4 bg-gray-100 rounded w-3/4" />
+                 <div className="h-3 bg-gray-50 rounded w-1/2" />
+               </div>
+            </div>
+          ) : todayShift ? (
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-orange-50 flex flex-col items-center justify-center text-orange-600">
+                <span className="text-[8px] font-black uppercase">VÀO</span>
+                <span className="text-sm font-black">{todayShift.startTime.slice(0, 5)}</span>
+              </div>
+              <ArrowRight className="w-4 h-4 text-gray-300" />
+              <div className="flex-1">
+                <p className="text-sm font-black text-gray-800 line-clamp-1">{todayShift.customerName || "Khách hàng lẻ"}</p>
+                <p className="text-[10px] font-bold text-gray-500 mt-0.5 line-clamp-1">{todayShift.customerAddress || "Địa chỉ khách hàng"}</p>
+                <p className="text-[10px] font-bold text-gray-400 truncate mt-1 italic">{todayShift.notes || "Hết sức cẩn thận"}</p>
+              </div>
+            </div>
+          ) : (
+            <div className="py-2 text-center">
+              <p className="text-sm font-bold text-gray-400 italic">Bạn không có ca làm việc hôm nay</p>
+            </div>
+          )}
         </div>
 
-        {/* Clock + Status badges */}
-        <div className="mt-4 bg-white rounded-2xl p-4 border border-gray-100 shadow-sm text-center">
-          <p className="text-3xl font-bold text-gray-800 tracking-wider font-mono">
-            {mounted ? currentTime.toLocaleTimeString("vi-VN", {
-              hour: "2-digit",
-              minute: "2-digit",
-              second: "2-digit",
-            }) : "--:--:--"}
+        {/* GPS Status */}
+        <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+                <div className={cn("p-2 rounded-xl", gps ? "bg-green-50 text-green-600" : "bg-red-50 text-red-600")}>
+                    <Navigation className="w-5 h-5" />
+                </div>
+                <div>
+                    <p className="text-xs font-black text-gray-800 uppercase tracking-tight">Vị trí hiện tại</p>
+                    <p className="text-[10px] font-bold text-gray-400">
+                        {gpsLoading ? "Đang xác định..." : gps ? `${gps.lat.toFixed(4)}, ${gps.lng.toFixed(4)}` : gpsError}
+                    </p>
+                </div>
+            </div>
+            {gps && <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />}
+        </div>
+
+        {/* Clock */}
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm text-center mb-4">
+          <p className="text-4xl font-black text-gray-800 tracking-wider font-mono">
+            {mounted ? format(currentTime, 'HH:mm:ss') : "--:--:--"}
           </p>
-
-          {checkInResult && statusCfg && (
-            <div className={`mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full ${statusCfg.bgColor}`}>
-              <span>{statusCfg.icon}</span>
-              <span className={`text-sm font-medium ${statusCfg.textColor}`}>
-                Check-in{" "}
-                {new Date(checkInResult.checkInTime).toLocaleTimeString("vi-VN", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-                {" · "}
+          {statusCfg && (
+            <div className={cn("mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-full", statusCfg.bgColor)}>
+              <span className={cn("text-xs font-black uppercase tracking-widest", statusCfg.textColor)}>
                 {statusCfg.label}
-                {checkInResult.lateMinutes > 0 && ` (${checkInResult.lateMinutes} phút)`}
-              </span>
-            </div>
-          )}
-
-          {checkOutResult && (
-            <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gray-100">
-              <LogOut className="w-4 h-4 text-gray-500" />
-              <span className="text-sm font-medium text-gray-600">
-                Check-out{" "}
-                {new Date(checkOutResult.checkOutTime).toLocaleTimeString("vi-VN", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-                {" · "}
-                {checkOutResult.actualMinutes} phút làm việc
               </span>
             </div>
           )}
         </div>
 
-        {/* Hidden camera input */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="hidden"
-          onChange={handlePhotoCapture}
-        />
-
-        {/* Photo button */}
-        <div className="mt-3">
-          <motion.button
-            whileTap={{ scale: 0.97 }}
-            onClick={() => fileInputRef.current?.click()}
-            className={`w-full flex items-center justify-center gap-3 py-3.5 rounded-xl font-semibold text-sm transition-all ${
-              photoFile
-                ? "bg-green-50 text-green-700 border border-green-200"
-                : "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md"
-            }`}
-          >
-            {photoFile ? (
-              <><CheckCircle className="w-5 h-5" /> Đã chụp ảnh Selfie & GPS</>
-            ) : (
-              <><Camera className="w-5 h-5" /> Chụp ảnh Selfie & GPS</>
-            )}
-          </motion.button>
-
-          {photoPreview && (
-            <div className="mt-2 relative rounded-xl overflow-hidden">
-              <img
-                src={photoPreview}
-                alt="Preview"
-                className="w-full h-32 object-cover"
-              />
-              <button
-                onClick={clearPhoto}
-                className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/50 flex items-center justify-center"
-              >
-                <X className="w-4 h-4 text-white" />
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* GPS + Info card */}
-        <div className="mt-3 bg-white rounded-2xl p-4 border border-gray-100 shadow-sm space-y-3">
-          {/* GPS status */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Wifi className="w-4 h-4 text-green-500" />
-              <span className="text-sm font-medium text-gray-700">Trạng thái GPS</span>
-            </div>
-            {gpsLoading ? (
-              <span className="text-xs px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">
-                Đang lấy...
-              </span>
-            ) : gpsError ? (
-              <button
-                onClick={requestGps}
-                className="text-xs font-semibold px-2.5 py-1 rounded-full bg-red-100 text-red-700 flex items-center gap-1"
-              >
-                <AlertCircle className="w-3 h-3" /> Thử lại
-              </button>
-            ) : (
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1 bg-green-100 text-green-700">
-                <Circle className="w-2 h-2 fill-current" /> Đã lấy GPS
-              </span>
-            )}
-          </div>
-
-          {gpsError && (
-            <p className="text-xs text-red-500 pl-6">{gpsError}</p>
-          )}
-
-          {/* Coordinates */}
-          {gps && (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-orange-500" />
-                <span className="text-sm font-medium text-gray-700">Vị trí GPS</span>
+        {/* Photo Section */}
+          <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoCapture} />
+        
+        <div className="space-y-4">
+            {!todayShift && !isFindingShift ? (
+              <div className="bg-red-50 border border-red-100 rounded-[24px] p-8 text-center space-y-4 shadow-sm">
+                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto shadow-sm">
+                  <Calendar className="w-8 h-8 text-red-400" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-red-600 uppercase tracking-tight">Không có ca làm việc</h3>
+                  <p className="text-xs font-bold text-red-400 mt-1 uppercase tracking-widest leading-relaxed">
+                    Hệ thống không tìm thấy ca được gán cho bạn hôm nay.<br/>
+                    Vui lòng liên hệ quản lý để được sắp xếp.
+                  </p>
+                </div>
+                <div className="pt-2 opacity-50 grayscale pointer-events-none">
+                  <div className="flex gap-3">
+                    <Button disabled className="flex-1 h-12 rounded-xl bg-gray-200">CHECK-IN</Button>
+                    <Button disabled className="flex-1 h-12 rounded-xl bg-gray-200">CHECK-OUT</Button>
+                  </div>
+                </div>
               </div>
-              <span className="text-xs text-gray-500 font-mono bg-gray-50 px-2 py-1 rounded-lg">
-                [{gps.lat.toFixed(4)}°, {gps.lng.toFixed(4)}°]
-              </span>
-            </div>
-          )}
-
-          {/* Distance from response */}
-          {checkInResult && (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-blue-500" />
-                <span className="text-sm font-medium text-gray-700">Khoảng cách</span>
-              </div>
-              <span className="text-xs font-semibold px-2 py-1 rounded-lg bg-blue-50 text-blue-700">
-                {checkInResult.distanceMeters.toFixed(0)} m
-              </span>
-            </div>
-          )}
-
-          {/* Work schedule */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-blue-500" />
-              <span className="text-sm font-medium text-gray-700">Ca làm việc</span>
-            </div>
-            <button
-              onClick={() => setShowConfig(!showConfig)}
-              className="flex items-center gap-1 text-xs font-medium bg-amber-50 text-amber-700 px-2 py-1 rounded-lg"
-            >
-              <Settings className="w-3 h-3" />
-              Ca #{workScheduleId}
-            </button>
-          </div>
-
-          {/* Expandable config */}
-          {showConfig && (
-            <div className="pt-3 border-t border-gray-100 space-y-2.5">
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-gray-500 w-28 shrink-0">ID Ca làm việc</span>
-                <input
-                  type="number"
-                  min={1}
-                  value={workScheduleId}
-                  onChange={(e) => setWorkScheduleId(Math.max(1, Number(e.target.value)))}
-                  className="flex-1 text-xs border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-orange-300"
-                />
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-gray-500 w-28 shrink-0">Ghi chú</span>
-                <input
-                  type="text"
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder="Lý do đến muộn (nếu có)"
-                  className="flex-1 text-xs border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-orange-300"
-                />
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Checkout reason (required when late) */}
-        {checkedIn && needsCheckOutReason && (
-          <div className="mt-3 bg-yellow-50 rounded-2xl p-4 border border-yellow-200">
-            <p className="text-xs font-semibold text-yellow-700 mb-2">
-              ⚠️ Bạn đang check-out sau giờ ca hơn 30 phút — vui lòng nhập lý do:
-            </p>
-            <textarea
-              value={checkOutReason}
-              onChange={(e) => setCheckOutReason(e.target.value)}
-              placeholder="Nhập lý do..."
-              rows={2}
-              className="w-full text-sm border border-yellow-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-yellow-400 bg-white resize-none"
-            />
-          </div>
-        )}
-
-        {/* Action buttons */}
-        <div className="mt-4 flex gap-3">
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            onClick={handleCheckIn}
-            disabled={checkedIn || isLoading || !gps || !photoFile}
-            className={`flex-1 py-4 rounded-2xl font-bold text-base flex items-center justify-center gap-2 shadow-lg transition-all ${
-              checkedIn || !gps || !photoFile
-                ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                : "bg-gradient-to-br from-green-500 to-green-600 text-white shadow-green-200"
-            }`}
-          >
-            {isLoading && !checkedIn ? (
-              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             ) : (
-              <><CheckCircle className="w-5 h-5" /> Check-in</>
-            )}
-          </motion.button>
+              <>
+                <motion.button
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isFindingShift}
+                    className={cn(
+                        "w-full flex items-center justify-center gap-3 py-4 rounded-[20px] font-bold text-sm transition-all shadow-lg shadow-blue-100",
+                        photoFile ? "bg-green-50 text-green-700 border border-green-200 shadow-none" : "bg-blue-600 text-white",
+                        isFindingShift && "opacity-50 cursor-not-allowed"
+                    )}
+                >
+                    <Camera className="w-5 h-5" />
+                    {photoFile ? "Ảnh đã sẵn sàng" : "Chụp ảnh Selfie để chấm công"}
+                </motion.button>
 
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            onClick={handleCheckOut}
-            disabled={!checkedIn || isLoading || !gps || !photoFile}
-            className={`flex-1 py-4 rounded-2xl font-bold text-base flex items-center justify-center gap-2 shadow-lg transition-all ${
-              !checkedIn || !gps || !photoFile
-                ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                : "bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-orange-200"
-            }`}
-          >
-            {isLoading && checkedIn ? (
-              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            ) : (
-              <><LogOut className="w-5 h-5" /> Check-out</>
+                {photoPreview && (
+                    <div className="relative rounded-2xl overflow-hidden h-32 border-2 border-white shadow-sm">
+                        <img src={photoPreview} alt="Preview" className="w-full h-full object-cover" />
+                        <button onClick={clearPhoto} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/40 flex items-center justify-center">
+                            <X className="w-4 h-4 text-white" />
+                        </button>
+                    </div>
+                )}
+
+                <div className="flex gap-3 pt-2">
+                    <Button
+                        onClick={onCheckInPress}
+                        disabled={isCheckInDisabled}
+                        className={cn(
+                            "flex-1 h-14 rounded-[20px] font-black text-base shadow-xl transition-all",
+                            isCheckInDisabled ? "bg-gray-200 text-gray-400 shadow-none" : "bg-green-500 hover:bg-green-600 text-white shadow-green-100"
+                        )}
+                    >
+                        {isLoading && !checkedIn ? <Loader2 className="animate-spin" /> : "CHECK-IN"}
+                    </Button>
+
+                    <Button
+                        onClick={onCheckOutPress}
+                        disabled={isCheckOutDisabled}
+                        className={cn(
+                            "flex-1 h-14 rounded-[20px] font-black text-base shadow-xl transition-all",
+                            isCheckOutDisabled ? "bg-gray-200 text-gray-400 shadow-none" : "bg-orange-500 hover:bg-orange-600 text-white shadow-orange-100"
+                        )}
+                    >
+                        {isLoading && checkedIn ? <Loader2 className="animate-spin" /> : "CHECK-OUT"}
+                    </Button>
+                </div>
+              </>
             )}
-          </motion.button>
         </div>
       </div>
 
-      <BottomNav />
+      {/* Late Reason Dialog */}
+      <Dialog open={isLateDialogOpen} onOpenChange={setIsLateDialogOpen}>
+        <DialogContent className="sm:max-w-[400px] rounded-[32px] p-0 border-none overflow-hidden">
+          <div className="bg-amber-500 p-8 text-white text-center">
+            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertCircle className="w-8 h-8" />
+            </div>
+            <h2 className="text-xl font-black uppercase tracking-tight">Xác nhận đi trễ</h2>
+            <p className="text-amber-100 text-sm mt-2 font-medium">Bạn cần cung cấp lý do đi trễ để Admin xét duyệt lương cho ca này.</p>
+          </div>
+          <div className="p-6">
+            <Textarea
+              value={lateReason}
+              onChange={(e) => setLateReason(e.target.value)}
+              placeholder="Ví dụ: Kẹt xe, Hỏng xe,..."
+              className="min-h-[100px] rounded-2xl border-gray-100 focus:ring-amber-500"
+            />
+            <div className="flex gap-3 mt-6">
+              <Button variant="ghost" onClick={() => setIsLateDialogOpen(false)} className="flex-1 rounded-xl">Hủy</Button>
+              <Button onClick={() => handleCheckIn(lateReason)} disabled={!lateReason.trim() || isLoading} className="flex-1 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold shadow-lg shadow-amber-100">
+                GỬI & CHECK-IN
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Late Check-out Reason Dialog */}
+      <Dialog open={isCheckOutLateDialogOpen} onOpenChange={setIsCheckOutLateDialogOpen}>
+        <DialogContent className="sm:max-w-[400px] rounded-[32px] p-0 border-none overflow-hidden">
+          <div className="bg-orange-500 p-8 text-white text-center">
+            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertCircle className="w-8 h-8" />
+            </div>
+            <h2 className="text-xl font-black uppercase tracking-tight">Check-out muộn</h2>
+            <p className="text-orange-100 text-sm mt-2 font-medium">Vui lòng cung cấp lý do check-out muộn (trên 30 phút so với giờ kết thúc ca).</p>
+          </div>
+          <div className="p-6">
+            <Textarea
+              value={checkOutReason}
+              onChange={(e) => setCheckOutReason(e.target.value)}
+              placeholder="Ví dụ: Làm thêm giờ, Hỗ trợ khách hàng,..."
+              className="min-h-[100px] rounded-2xl border-gray-100 focus:ring-orange-500"
+            />
+            <div className="flex gap-3 mt-6">
+              <Button variant="ghost" onClick={() => setIsCheckOutLateDialogOpen(false)} className="flex-1 rounded-xl">Hủy</Button>
+              <Button onClick={() => handleCheckOut(checkOutReason)} disabled={!checkOutReason.trim() || isLoading} className="flex-1 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-bold shadow-lg shadow-orange-100">
+                GỬI & CHECK-OUT
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

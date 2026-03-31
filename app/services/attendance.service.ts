@@ -3,6 +3,7 @@ import {
   CheckInFormData,
   CheckInResponse,
   CheckOutFormData,
+  CheckOutResponse,
   AdminUpdateAttendanceRequest,
   ApiAttendanceResponse,
   WorkScheduleRequest,
@@ -10,7 +11,8 @@ import {
   } from '@/app/types/attendance.schema'
 
   export class AttendanceService {
-  private static readonly PREFIX = '/attendance'
+  private static readonly PREFIX = '/v1/attendance'
+  private static readonly SHIFT_PREFIX = '/v1/shifts'
 
   static async createSchedule(data: WorkScheduleRequest): Promise<ApiAttendanceResponse<WorkScheduleResponse>> {
     const response = await apiJava.post<ApiAttendanceResponse<WorkScheduleResponse>>(
@@ -28,9 +30,8 @@ import {
   }
 
   /**
-   * Check-in with GPS + photo (multipart/form-data).
-  ...
-   * Browser sets Content-Type boundary automatically when FormData is passed.
+   * Check-in with GPS coordinates.
+   * POST /v1/attendance/check-in
    */
   static async checkIn(
     data: CheckInFormData
@@ -39,21 +40,20 @@ import {
     formData.append('workScheduleId', String(data.workScheduleId))
     formData.append('lat', String(data.lat))
     formData.append('lng', String(data.lng))
+    formData.append('photo', data.photo) // File object
     if (data.capturedAt) formData.append('capturedAt', data.capturedAt)
     if (data.note) formData.append('note', data.note)
-    formData.append('photo', data.photo)
 
     const response = await apiJava.post<ApiAttendanceResponse<CheckInResponse>>(
       `${this.PREFIX}/check-in`,
-      formData,
-      { headers: { 'Content-Type': undefined } }
+      formData
     )
     return response.data
   }
 
   /**
-   * Check-out with GPS + photo.
-   * checkOutReason is required if checking out >30 min after shift end.
+   * Check-out with GPS coordinates.
+   * POST /v1/attendance/check-out
    */
   static async checkOut(
     data: CheckOutFormData
@@ -62,14 +62,13 @@ import {
     formData.append('attendanceRecordId', String(data.attendanceRecordId))
     formData.append('lat', String(data.lat))
     formData.append('lng', String(data.lng))
+    formData.append('photo', data.photo) // File object
     if (data.capturedAt) formData.append('capturedAt', data.capturedAt)
     if (data.checkOutReason) formData.append('checkOutReason', data.checkOutReason)
-    formData.append('photo', data.photo)
 
     const response = await apiJava.post<ApiAttendanceResponse<CheckOutResponse>>(
       `${this.PREFIX}/check-out`,
-      formData,
-      { headers: { 'Content-Type': undefined } }
+      formData
     )
     return response.data
   }

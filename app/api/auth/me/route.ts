@@ -17,7 +17,7 @@ export async function GET() {
   } catch (e) {
     if (e instanceof AxiosError) {
       return NextResponse.json(
-        { message: e.response?.data?.message || e.message },
+        e.response?.data || { message: e.message },
         { status: e.response?.status || 500 }
       )
     }

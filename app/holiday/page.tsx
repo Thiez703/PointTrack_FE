@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import BottomNav from '@/components/common/BottomNav';
+import { cn } from '@/lib/utils';
 
 // --- MOCK DATA ---
 const initialHolidays = [
@@ -32,37 +32,91 @@ export default function HolidayPage() {
     }, {});
 
     return (
-        <div className="login-app-container pb-24 min-h-screen bg-gray-50">
-            <div className="bg-gradient-to-br from-purple-500 to-indigo-600 pt-12 pb-6 px-5 rounded-b-[28px] relative overflow-hidden">
-                <div className="absolute inset-0 opacity-10">
-                    <div className="absolute -top-10 -right-10 w-40 h-40 bg-white rounded-full" />
-                    <div className="absolute bottom-5 -left-5 w-28 h-28 bg-white rounded-full" />
+        <div className="flex-1 w-full pb-32 lg:pb-12 bg-gray-50 dark:bg-slate-950 min-h-screen">
+            <div className="bg-gradient-to-br from-purple-600 to-indigo-700 pt-16 pb-20 px-6 sm:px-12 rounded-b-[60px] lg:rounded-b-[80px] relative overflow-hidden shadow-2xl">
+                <div className="absolute inset-0 opacity-15">
+                    <div className="absolute -top-20 -right-20 w-64 h-64 bg-white rounded-full blur-3xl" />
+                    <div className="absolute bottom-5 -left-10 w-48 h-48 bg-white rounded-full blur-2xl" />
                 </div>
-                <div className="relative z-10">
-                    <button onClick={() => router.back()} className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center mb-3 backdrop-blur-sm"><ChevronLeft className="w-5 h-5 text-white" /></button>
-                    <h1 className="text-xl font-bold text-white mb-1">Đăng ký ca Lễ/Tết</h1>
-                    <p className="text-purple-200 text-xs">Hệ số OT lên đến 3.0x — Thu nhập nhân 3!</p>
+                <div className="relative z-10 max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-8">
+                    <div>
+                        <button onClick={() => router.back()} className="w-12 h-12 rounded-2xl bg-white/10 hover:bg-white/20 flex items-center justify-center mb-6 transition-all border border-white/10 backdrop-blur-md">
+                            <ChevronLeft className="w-6 h-6 text-white" />
+                        </button>
+                        <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tighter mb-2">Đăng ký làm thêm Lễ/Tết</h1>
+                        <p className="text-purple-100 text-sm font-bold uppercase tracking-[0.2em] opacity-80 flex items-center gap-2">
+                            <TrendingUp size={16} /> Thu nhập nhân 3.0x hệ số OT
+                        </p>
+                    </div>
+                    <div className="bg-white/10 backdrop-blur-xl rounded-[32px] p-6 border border-white/10 shadow-lg">
+                        <p className="text-white/60 text-[10px] font-black uppercase tracking-widest mb-1">Tổng ca đang chờ</p>
+                        <p className="text-white text-3xl font-black">{holidays.filter(h => h.registered).length}</p>
+                    </div>
                 </div>
             </div>
 
-            <div className="px-5 mt-4 space-y-5">
-                {Object.entries(groupedHolidays).map(([name, shifts]: any, gi) => (
+            <div className="max-w-7xl mx-auto px-6 sm:px-12 -mt-10 relative z-20 space-y-10">
+                {Object.entries(groupedHolidays).map(([name, shifts]: any) => (
                     <div key={name}>
-                        <div className="flex items-center gap-2 mb-3"><Gift className="w-4 h-4 text-purple-500" /><h2 className="font-bold text-gray-800 text-sm">{name}</h2></div>
-                        <div className="space-y-3">
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-500/10 flex items-center justify-center text-purple-600 shadow-sm">
+                                <Gift size={20} />
+                            </div>
+                            <h2 className="font-black text-gray-800 dark:text-white text-lg sm:text-xl tracking-tight uppercase">{name}</h2>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {shifts.map((holiday: any, i: number) => (
-                                <motion.div key={holiday.id} initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: i * 0.05 }} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-                                    <div className="flex items-center justify-between mb-3">
-                                        <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-purple-500" /><span className="text-sm font-semibold text-gray-800">{holiday.date}</span><span className="text-xs text-gray-400">·</span><span className="text-sm font-medium text-gray-600">Ca {holiday.shift}</span></div>
-                                        <div className="flex items-center gap-1 bg-amber-100 text-orange-700 font-bold text-xs px-2.5 py-1 rounded-full"><TrendingUp className="w-3 h-3" />x{holiday.otRate}</div>
+                                <motion.div 
+                                    key={holiday.id} 
+                                    initial={{ opacity: 0, y: 20 }} 
+                                    animate={{ opacity: 1, y: 0 }} 
+                                    transition={{ delay: i * 0.1 }} 
+                                    className="bg-white dark:bg-slate-900 rounded-[32px] p-6 border border-gray-100 dark:border-slate-800 shadow-xl shadow-gray-200/50 dark:shadow-none group hover:border-purple-200 transition-all"
+                                >
+                                    <div className="flex items-center justify-between mb-6">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-xl bg-gray-50 dark:bg-slate-800 flex items-center justify-center text-purple-500">
+                                                <Calendar size={20} />
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-black text-gray-800 dark:text-white tracking-tight">{holiday.date}</p>
+                                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Ca {holiday.shift}</p>
+                                            </div>
+                                        </div>
+                                        <div className="px-3 py-1 bg-amber-50 dark:bg-amber-500/10 text-orange-600 dark:text-orange-400 font-black text-xs rounded-full border border-orange-100 dark:border-orange-900/30">
+                                            x{holiday.otRate}
+                                        </div>
                                     </div>
-                                    <div className="space-y-2 text-xs text-gray-600">
-                                        <div className="flex items-center gap-2"><Clock className="w-3.5 h-3.5 opacity-50" /><span>{holiday.time}</span></div>
-                                        <div className="flex items-center gap-2"><MapPin className="w-3.5 h-3.5 opacity-50" /><span>{holiday.location}</span></div>
-                                        <div className="flex items-center gap-2"><Building2 className="w-3.5 h-3.5 opacity-50" /><span>{holiday.client}</span></div>
+                                    <div className="bg-gray-50 dark:bg-slate-800/50 rounded-2xl p-4 space-y-3 mb-6 border border-gray-50 dark:border-slate-800">
+                                        <div className="flex items-center gap-3 text-xs font-bold text-gray-600 dark:text-gray-400">
+                                            <Clock size={14} className="text-purple-400" />
+                                            <span>{holiday.time}</span>
+                                        </div>
+                                        <div className="flex items-center gap-3 text-xs font-bold text-gray-600 dark:text-gray-400">
+                                            <MapPin size={14} className="text-blue-400" />
+                                            <span className="truncate">{holiday.location}</span>
+                                        </div>
+                                        <div className="flex items-center gap-3 text-xs font-bold text-gray-600 dark:text-gray-400">
+                                            <Building2 size={14} className="text-green-400" />
+                                            <span className="truncate">{holiday.client}</span>
+                                        </div>
                                     </div>
-                                    <motion.button whileTap={{ scale: 0.97 }} onClick={() => handleRegister(holiday.id)} disabled={holiday.registered} className={`w-full mt-3 py-2.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 ${holiday.registered ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md'}`}>
-                                        {holiday.registered ? <><Star className="w-4 h-4 fill-current" /> Đã đăng ký — Chờ duyệt</> : <><Star className="w-4 h-4" /> Đăng ký làm thêm</>}
+                                    <motion.button 
+                                        whileTap={{ scale: 0.97 }} 
+                                        onClick={() => handleRegister(holiday.id)} 
+                                        disabled={holiday.registered} 
+                                        className={cn(
+                                            "w-full py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-3 transition-all shadow-lg shadow-gray-100 dark:shadow-none",
+                                            holiday.registered 
+                                                ? "bg-green-50 dark:bg-green-500/10 text-green-600 border border-green-100 dark:border-green-900/30 shadow-none cursor-default" 
+                                                : "bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:opacity-90 active:scale-95"
+                                        )}
+                                    >
+                                        {holiday.registered ? (
+                                            <><CheckCircle2 className="w-4 h-4" /> Đã đăng ký</>
+                                        ) : (
+                                            <><Star className="w-4 h-4" /> Đăng ký làm ngay</>
+                                        )}
                                     </motion.button>
                                 </motion.div>
                             ))}
@@ -70,7 +124,6 @@ export default function HolidayPage() {
                     </div>
                 ))}
             </div>
-            <BottomNav />
         </div>
     );
 }

@@ -62,7 +62,7 @@ export async function POST(request: Request) {
   } catch (e) {
     if (e instanceof AxiosError) {
       return NextResponse.json(
-        { message: e.response?.data?.message || e.message },
+        e.response?.data || { message: e.message },
         { status: e.response?.status || 500 }
       )
     }

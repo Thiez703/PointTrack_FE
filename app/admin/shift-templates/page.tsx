@@ -1,40 +1,39 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { AdminService } from "@/app/services/admin.service";
+import { SchedulingService, ShiftTemplate } from "@/app/services/scheduling.service";
 import { DataTable } from "@/components/admin/DataTable";
-import { ShiftTemplate } from "@/app/types/admin.schema";
 import { Clock, Briefcase } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 export default function ShiftTemplatesPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["admin", "shift-templates"],
-    queryFn: () => AdminService.getShiftTemplates(),
+    queryFn: () => SchedulingService.getShiftTemplates(),
   });
 
   const columns = [
-    { 
-      header: "Tên Ca", 
+    {
+      header: "Tên Ca",
       accessor: "name" as keyof ShiftTemplate,
       className: "font-black text-gray-800"
     },
-    { 
-      header: "Thời gian", 
+    {
+      header: "Thời gian",
       accessor: (item: ShiftTemplate) => (
         <div className="flex items-center gap-2 text-orange-600 font-bold">
            <Clock className="w-4 h-4" />
-           <span>{item.startTime} - {item.endTime}</span>
+           <span>{item.defaultStart} - {item.defaultEnd}</span>
         </div>
       )
     },
-    { 
-      header: "Loại ca", 
+    {
+      header: "Loại ca",
       accessor: (item: ShiftTemplate) => (
         <div className="flex items-center gap-2">
            <Briefcase className="w-4 h-4 text-gray-400" />
            <Badge variant="outline" className="border-gray-200 text-gray-600 font-bold uppercase tracking-widest text-[10px]">
-             {item.type === "OFFICE" ? "Hành chính" : "Ca xoay"}
+             {item.shiftType === "NORMAL" ? "Hành chính" : "Ca xoay"}
            </Badge>
         </div>
       )

@@ -65,6 +65,11 @@ export class UserService {
     return response.data
   }
 
+  static async getMe(): Promise<EmployeeProfileResponse> {
+    const response = await apiJava.get<EmployeeProfileResponse>('/v1/employees/me')
+    return response.data
+  }
+
   static connectUser = (stompClient: Client, user: UserType) => {
     if (stompClient.connected) {
       stompClient.publish({

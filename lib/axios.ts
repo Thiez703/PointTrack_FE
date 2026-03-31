@@ -1,201 +1,109 @@
-import axios, {
-  AxiosError,
-  AxiosInstance,
-  InternalAxiosRequestConfig,
-  isCancel
-} from 'axios'
-import { toast } from 'sonner'
-import { AuthService } from '@/app/services/auth.service'
+import axios from 'axios'
+import { tokenUtils } from './tokenUtils'
 
-type Token = string
-type NullableToken = Token | null
+// --- Instance 1: Direct Backend (Java Spring Boot) ---
+export const apiJava = axios.create({
+  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api',
+  timeout: 15000,
+  headers: { 'Content-Type': 'application/json' }
+})
 
-type FailedQueueItem = {
-  resolve: (token: Token) => void
-  reject: (err: unknown) => void
-}
+// --- Instance 2: Next.js API Proxy ---
+export const apiNext = axios.create({
+  baseURL: '/api',
+  timeout: 10000,
+  headers: { 'Content-Type': 'application/json' },
+  withCredentials: true,
+})
 
-type RetriableRequest = InternalAxiosRequestConfig & {
-  _retry?: boolean
-}
+// JWT request interceptor for direct calls
+apiJava.interceptors.request.use((config) => {
+  if (typeof window !== 'undefined') {
+    const token = tokenUtils.getToken()
+    if (token) config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
 
+// Simple error handler for apiNext (no refresh — proxy routes manage cookies)
+apiNext.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const message = error.response?.data?.detail || error.response?.data?.message || 'Có lỗi xảy ra'
+    const errorCode = error.response?.data?.errorCode || 'UNKNOWN_ERROR'
+    return Promise.reject({ message, errorCode, response: error.response })
+  }
+)
 
+// Refresh state
 let isRefreshing = false
-let failedQueue: FailedQueueItem[] = []
+let failedQueue: Array<{ resolve: (token: string | null) => void; reject: (err: unknown) => void }> = []
 
-const isClient = () => typeof window !== 'undefined'
-const isDev = true // Ép hiển thị log trong quá trình debug kết nối
-
-const debugLog = (...args: unknown[]) => {
-  if (isDev) console.log('🔍 [API Debug]:', ...args)
-}
-
-const redact = (data: unknown) => {
-  if (!data) return data
-  try {
-    return JSON.parse(
-      JSON.stringify(data, (_k, v) =>
-        typeof v === 'string' && (v.startsWith('Bearer ') || v.length > 200)
-          ? '[REDACTED]'
-          : v
-      )
-    )
-  } catch {
-    return '[UNSERIALIZABLE]'
-  }
-}
-
-
-const getAccessToken = async (): Promise<NullableToken> => {
-  if (isClient()) {
-    try {
-      const { useAuthStore } = await import('@/stores/useAuthStore')
-      return useAuthStore.getState().accessToken ?? null
-    } catch {
-      return null
-    }
-  }
-  return null
-}
-
-const processQueue = (error: unknown, token: NullableToken = null) => {
-  failedQueue.forEach((p) => (error ? p.reject(error) : p.resolve(token!)))
+const processQueue = (error: unknown, token: string | null = null) => {
+  failedQueue.forEach(({ resolve, reject }) => {
+    if (error) reject(error)
+    else resolve(token)
+  })
   failedQueue = []
 }
 
-
-const getErrorMessage = (error: AxiosError<any>) => {
-  const data = error.response?.data
-  if (!data) return 'Lỗi hệ thống, vui lòng thử lại.'
-
-  // Nếu có fieldErrors (từ spec BE v1), ghép chúng lại
-  if (Array.isArray(data.fieldErrors) && data.fieldErrors.length > 0) {
-    return data.fieldErrors.join(', ')
+const redirectToLogin = () => {
+  if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+    tokenUtils.removeToken()
+    window.location.href = '/login'
   }
-
-  return (
-    data.detail ||
-    data.message ||
-    data.error_description ||
-    data.error ||
-    data.title ||
-    (typeof data === 'string' ? data : null) ||
-    'Lỗi hệ thống, vui lòng thử lại.'
-  )
 }
 
-const isAuthRefreshUrl = (url?: string | null) =>
-  !!url && (url.includes('/api/auth/refresh') || url.includes('/v1/auth/token/refresh'))
+// Response interceptor for apiJava: 401 → refresh → retry → redirect
+apiJava.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config
 
-const errorHandlers: Record<number | 'default', (error: AxiosError<any>) => Promise<never>> = {
-  400: async (e) => Promise.reject(e),
-  409: async (e) => Promise.reject(e),
-  422: async (e) => Promise.reject(e),
-  403: async (e) => Promise.reject(e),
-  404: async (e) => Promise.reject(e),
-  429: async (e) => Promise.reject(e),
-
-  401: async (error) => {
-    if (isClient()) {
-      const url = error.config?.url || ''
-      const isAuthFlow =
-        url.includes('/login') ||
-        url.includes('/signup')
-
-      if (!isAuthFlow) {
-        toast.error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.')
+    if (error.response?.status === 401 && !originalRequest._retry && typeof window !== 'undefined') {
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({
+            resolve: (token) => {
+              if (token) originalRequest.headers.Authorization = `Bearer ${token}`
+              resolve(apiJava(originalRequest))
+            },
+            reject,
+          })
+        })
       }
-    }
-    return Promise.reject(error)
-  },
 
-  500: async (e) => {
-    if (isClient()) toast.error('Lỗi hệ thống máy chủ. Vui lòng thử lại.')
-    return Promise.reject(e)
-  },
-  502: async (e) => {
-    if (isClient()) toast.error('Máy chủ không phản hồi (502).')
-    return Promise.reject(e)
-  },
-  503: async (e) => {
-    if (isClient()) toast.error('Dịch vụ tạm thời gián đoạn (503).')
-    return Promise.reject(e)
-  },
+      originalRequest._retry = true
+      isRefreshing = true
 
-  default: async (e) => Promise.reject(e)
-}
+      try {
+        // Use vanilla axios to avoid triggering this interceptor again
+        const { data } = await axios.post('/api/auth/refresh', {}, { withCredentials: true })
+        const newToken = data?.accessToken as string | undefined
 
-
-const createApi = (baseURL: string): AxiosInstance => {
-  const axiosInstance = axios.create({
-    baseURL,
-    timeout: 15000,
-    headers: { 'Content-Type': 'application/json' },
-    withCredentials: true
-  })
-
-  axiosInstance.interceptors.request.use(async (config) => {
-    const token = await getAccessToken()
-    if (token) config.headers.Authorization = `Bearer ${token}`
-
-    debugLog('🚀 Request:', {
-      method: config.method?.toUpperCase(),
-      url: config.url,
-      data: redact(config.data)
-    })
-    return config
-  })
-
-  axiosInstance.interceptors.response.use(
-    (res) => res,
-    async (error: AxiosError<any>) => {
-      if (isCancel(error)) return Promise.reject(error)
-
-      const status = error.response?.status
-      const original = error.config as RetriableRequest
-      if (status === 401 && original && !original._retry && !isAuthRefreshUrl(original.url)) {
-        const isAuthFlow =
-          original.url?.includes('/login') ||
-          original.url?.includes('/signup')
-
-        if (!isAuthFlow) {
-          if (isRefreshing) {
-            return new Promise((res, rej) =>
-              failedQueue.push({ resolve: res, reject: rej })
-            ).then((token) => {
-              original.headers.Authorization = `Bearer ${token}`
-              return axiosInstance(original)
-            })
-          }
-
-          original._retry = true
-          isRefreshing = true
-
-          try {
-            const res = await AuthService.refreshAuthTokenNext()
-            const newToken = res.accessToken
-            processQueue(null, newToken)
-            original.headers.Authorization = `Bearer ${newToken}`
-            return axiosInstance(original)
-          } catch (err) {
-            processQueue(err, null)
-            if (isClient()) window.location.href = '/login'
-            return Promise.reject(err)
-          } finally {
-            isRefreshing = false
-          }
+        if (newToken) {
+          tokenUtils.setToken(newToken)
+          apiJava.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
+          originalRequest.headers.Authorization = `Bearer ${newToken}`
         }
+
+        processQueue(null, newToken ?? null)
+        return apiJava(originalRequest)
+      } catch (refreshError) {
+        processQueue(refreshError, null)
+        redirectToLogin()
+        return Promise.reject(refreshError)
+      } finally {
+        isRefreshing = false
       }
-
-      const handler = errorHandlers[status as number] || errorHandlers.default
-      return handler(error)
     }
-  )
 
-  return axiosInstance
-}
+    const message = error.response?.data?.detail || error.response?.data?.message || 'Có lỗi xảy ra'
+    const errorCode = error.response?.data?.errorCode || 'UNKNOWN_ERROR'
+    return Promise.reject({ message, errorCode, response: error.response })
+  }
+)
 
-const apiJava = createApi(process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080/api')
-const apiNext = createApi(process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000/api')
-
-export { apiJava, apiNext, createApi, getErrorMessage }
+// Default export for backward compatibility or general use
+const api = apiJava
+export default api

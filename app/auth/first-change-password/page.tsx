@@ -12,13 +12,11 @@ import { motion } from "framer-motion";
 
 import { AuthService } from "@/app/services/auth.service";
 import { useAuthStore } from "@/stores/useAuthStore";
+import { newPasswordSchema } from "@/app/types/auth.schema";
 
 const Schema = z
   .object({
-    newPassword: z
-      .string()
-      .length(6, "Mật khẩu phải đúng 6 chữ số")
-      .regex(/^\d{6}$/, "Mật khẩu phải gồm 6 chữ số"),
+    newPassword: newPasswordSchema,
     confirmPassword: z.string().min(1, "Vui lòng xác nhận mật khẩu"),
   })
   .refine((d) => d.newPassword === d.confirmPassword, {
@@ -103,8 +101,7 @@ export default function FirstChangePasswordPage() {
                 </div>
                 <input
                   type={showNew ? "text" : "password"}
-                  inputMode="numeric"
-                  placeholder="6 chữ số"
+                  placeholder="Tối thiểu 8 ký tự, có chữ hoa và số"
                   disabled={mutation.isPending}
                   className={`login-input-field ${errors.newPassword ? "border-red-500 ring-1 ring-red-100" : ""}`}
                   {...register("newPassword")}
@@ -141,7 +138,6 @@ export default function FirstChangePasswordPage() {
                 </div>
                 <input
                   type={showConfirm ? "text" : "password"}
-                  inputMode="numeric"
                   placeholder="Nhập lại mật khẩu"
                   disabled={mutation.isPending}
                   className={`login-input-field ${errors.confirmPassword ? "border-red-500 ring-1 ring-red-100" : ""}`}

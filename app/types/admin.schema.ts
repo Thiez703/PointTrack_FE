@@ -2,12 +2,18 @@ import { z } from "zod";
 
 // --- Module 1: Personnel & User ---
 export const CreateEmployeeSchema = z.object({
-  fullName: z.string().min(5, "Họ tên phải ít nhất 5 ký tự"),
-  phoneNumber: z.string().regex(/^0\d{9}$/, "Số điện thoại VN không hợp lệ"),
-  email: z.string().email("Email không hợp lệ").optional().or(z.literal("")),
-  position: z.string().min(1, "Vui lòng chọn chức vụ"),
-  department: z.string().min(1, "Vui lòng chọn phòng ban"),
-  salaryLevelId: z.number().min(1, "Vui lòng chọn bậc lương"),
+  fullName: z.string().min(2, "Họ tên phải từ 2-100 ký tự").max(100, "Họ tên tối đa 100 ký tự"),
+  phone: z.string().regex(/^0\d{9}$/, "Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0"),
+  email: z.string().email("Email không hợp lệ"),
+  salaryLevelId: z.number().optional(),
+  hiredDate: z.string().optional().refine((date) => {
+    if (!date) return true;
+    const d = new Date(date);
+    return d <= new Date();
+  }, "Ngày vào làm không được là ngày trong tương lai"),
+  area: z.string().max(100, "Khu vực tối đa 100 ký tự").optional(),
+  skills: z.array(z.string()).optional(),
+  avatarUrl: z.string().optional(),
 });
 
 export type CreateEmployeeRequest = z.infer<typeof CreateEmployeeSchema>;
@@ -16,36 +22,38 @@ export interface Employee {
   id: number;
   employeeCode: string;
   fullName: string;
-  phoneNumber: string;
+  phone: string;
   email: string | null;
   position: string;
   department: string;
-  status: "ACTIVE" | "INACTIVE";
-  salaryLevelName: string;
+  avatarUrl: string | null;
+  area: string | null;
+  skills: string[];
+  status: "ACTIVE" | "INACTIVE" | "ON_LEAVE";
+  role: "USER" | "ADMIN";
+  isFirstLogin: boolean;
+  hiredDate: string | null;
+  salaryLevelId: number | null;
+  salaryLevelName: string | null;
   createdAt: string;
+  updatedAt: string;
 }
 
-// --- Module 2: Customer & Location ---
-export const CustomerSchema = z.object({
-  name: z.string().min(1, "Tên khách hàng không được để trống"),
-  address: z.string().min(1, "Địa chỉ không được để trống"),
-  latitude: z.number().min(-90).max(90),
-  longitude: z.number().min(-180).max(180),
-  radius: z.number().min(10, "Bán kính tối thiểu 10m"),
-});
-
-export type CustomerRequest = z.infer<typeof CustomerSchema>;
-
-export interface Customer extends CustomerRequest {
-  id: number;
+export interface PersonnelStats {
+  totalEmployees: number;
+  activeEmployees: number;
+  onLeaveEmployees: number;
+  newEmployeesThisMonth: number;
+  totalTrend: string;
+  activeRate: string;
 }
 
 // --- Module 3: Shift Template ---
 export const ShiftTemplateSchema = z.object({
   name: z.string().min(1, "Tên ca không được để trống"),
-  startTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Định dạng HH:mm"),
-  endTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Định dạng HH:mm"),
-  type: z.enum(["OFFICE", "SHIFT"]),
+  defaultStart: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d):([0-5]\d)$/, "Định dạng HH:mm:ss"),
+  defaultEnd: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d):([0-5]\d)$/, "Định dạng HH:mm:ss"),
+  shiftType: z.enum(["NORMAL", "HOLIDAY", "OT_EMERGENCY"]),
 });
 
 export type ShiftTemplateRequest = z.infer<typeof ShiftTemplateSchema>;
@@ -76,32 +84,33 @@ export interface AttendanceRecord {
 
 // --- Module 5: System Settings ---
 export const GracePeriodSchema = z.object({
-  lateMinutes: z.number().min(0),
-  earlyLeaveMinutes: z.number().min(0),
+  gracePeriodMinutes: z.number().min(0),
 });
 
 export const PenaltyRuleSchema = z.object({
-  ruleName: z.string(),
-  amount: z.number().min(0),
+  rules: z.array(z.object({
+    minLateMinutes: z.number().min(0),
+    deductionPercent: z.number().min(0).max(100),
+  })),
 });
 
 export interface SystemSettings {
-  lateMinutes: number;
-  earlyLeaveMinutes: number;
-  penaltyRules: { ruleName: string; amount: number }[];
+  gracePeriodMinutes: number;
+  penaltyRules: { minLateMinutes: number, deductionPercent: number }[];
 }
 
 // --- Module 6: Salary Level ---
 export const SalaryLevelSchema = z.object({
-  levelName: z.string().min(1, "Tên bậc lương không được để trống"),
+  name: z.string().min(1, "Tên bậc lương không được để trống"),
   baseSalary: z.number().min(0),
-  allowance: z.number().min(0),
 });
 
 export type SalaryLevelRequest = z.infer<typeof SalaryLevelSchema>;
 
-export interface SalaryLevel extends SalaryLevelRequest {
+export interface SalaryLevel {
   id: number;
+  name: string;
+  baseSalary: number;
 }
 
 // Common Response Wrapper

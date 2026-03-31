@@ -1,9 +1,9 @@
 "use client";
 
-import { 
-  ChevronLeft, 
-  ChevronRight, 
-  Search,
+import { memo } from "react";
+import {
+  ChevronLeft,
+  ChevronRight,
   MoreVertical,
   Plus
 } from "lucide-react";
@@ -22,15 +22,17 @@ interface DataTableProps<T> {
   data: T[];
   onAdd?: () => void;
   isLoading?: boolean;
+  renderActions?: (item: T) => React.ReactNode;
 }
 
-export function DataTable<T extends { id: number | string }>({ 
+function DataTableInner<T extends { id: number | string }>({
   title, 
   description, 
   columns, 
   data, 
   onAdd,
-  isLoading 
+  isLoading,
+  renderActions
 }: DataTableProps<T>) {
   return (
     <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
@@ -42,16 +44,6 @@ export function DataTable<T extends { id: number | string }>({
         </div>
         
         <div className="flex items-center gap-4">
-           {/* Search in table */}
-           <div className="relative w-64">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input 
-                type="text" 
-                placeholder="Tìm kiếm trong bảng..." 
-                className="w-full bg-gray-50 border-none rounded-xl py-2 pl-11 pr-4 text-sm focus:ring-2 focus:ring-orange-100 outline-none"
-              />
-           </div>
-
            {onAdd && (
              <button 
                 onClick={onAdd}
@@ -96,9 +88,11 @@ export function DataTable<T extends { id: number | string }>({
                     </td>
                   ))}
                   <td className="px-8 py-6 text-right">
-                    <button className="p-2 text-gray-400 hover:bg-white hover:text-orange-500 rounded-lg transition-all border border-transparent hover:border-gray-100 shadow-sm">
-                      <MoreVertical className="w-5 h-5" />
-                    </button>
+                    {renderActions ? renderActions(item) : (
+                      <button className="p-2 text-gray-400 hover:bg-white hover:text-orange-500 rounded-lg transition-all border border-transparent hover:border-gray-100 shadow-sm">
+                        <MoreVertical className="w-5 h-5" />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))
@@ -140,3 +134,6 @@ export function DataTable<T extends { id: number | string }>({
     </div>
   );
 }
+
+// memo() does not support generics directly, so we cast with the original type signature preserved
+export const DataTable = memo(DataTableInner) as typeof DataTableInner;
