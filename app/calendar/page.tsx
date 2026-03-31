@@ -133,7 +133,7 @@ export default function CalendarPage() {
   })
 
   const confirmMutation = useMutation({
-    mutationFn: (shiftId: number) => SchedulingService.confirmShift(shiftId),
+    mutationFn: (shiftId: number) => SchedulingService.confirmShift(shiftId, userId),
     onSuccess: () => {
       toast.success('Đã xác nhận ca làm việc!')
       queryClient.invalidateQueries({ queryKey: ['shifts', 'calendar'] })

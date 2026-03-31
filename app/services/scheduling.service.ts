@@ -176,9 +176,11 @@ export class SchedulingService {
   /**
    * NV xác nhận đi làm
    */
-  static async confirmShift(shiftId: number): Promise<ApiAttendanceResponse<void>> {
+  static async confirmShift(shiftId: number, employeeId?: number | string): Promise<ApiAttendanceResponse<void>> {
     const response = await apiJava.post<ApiAttendanceResponse<void>>(
-      `${this.SHIFT_PREFIX}/${shiftId}/confirm`
+      `${this.SHIFT_PREFIX}/${shiftId}/confirm`,
+      {},
+      { params: { employeeId } }
     )
     return response.data
   }
