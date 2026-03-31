@@ -16,7 +16,6 @@ import { toast } from "sonner";
 import { AttendanceService } from "@/app/services/attendance.service";
 import { SchedulingService } from "@/app/services/scheduling.service";
 import { FileService } from "@/app/services/file.service";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
 import type {
   CheckInResponse,
   CheckOutResponse,
@@ -60,7 +59,6 @@ const STATUS_CONFIG: Record<
 const STORAGE_KEY = "pt_attendance_today";
 
 export default function CheckinPage() {
-  const { user } = useCurrentUser();
   const { userInfo } = useAuthStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -93,12 +91,13 @@ export default function CheckinPage() {
   const userId = userInfo?.userId || userInfo?.id;
 
   const { data: shiftsData, isLoading: isFindingShift } = useQuery({
-    queryKey: ['shifts', 'today', userId],
-    queryFn: () => SchedulingService.getShifts({
-      employeeId: userId,
-      startDate: formatToISODate(new Date()),
-      endDate: formatToISODate(new Date()),
-    }),
+    queryKey: ["shifts", "today", userId],
+    queryFn: () =>
+      SchedulingService.getShifts({
+        employeeId: userId,
+        startDate: formatToISODate(new Date()),
+        endDate: formatToISODate(new Date()),
+      }),
     enabled: !!userId,
   });
 
