@@ -6,6 +6,8 @@ import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { Play, CheckCircle2, XCircle } from 'lucide-react'
 
+import { format } from 'date-fns'
+
 interface ShiftBadgeProps {
   shift: ShiftSchema
   onClick?: (e: React.MouseEvent) => void
@@ -18,9 +20,17 @@ const shiftTypeColors: Record<ShiftType, string> = {
 }
 
 const ShiftBadge: React.FC<ShiftBadgeProps> = ({ shift, onClick }) => {
-  const isCompleted = shift.status === ShiftStatus.COMPLETED
+  const todayStr = format(new Date(), 'yyyy-MM-dd')
+  const isPast = shift.shiftDate < todayStr
+  
+  const isCompleted = shift.status === ShiftStatus.COMPLETED || 
+                      !!shift.checkOutTime || 
+                      (!!shift.checkInTime && isPast)
+
   const isCancelled = shift.status === ShiftStatus.CANCELLED
-  const isInProgress = shift.status === ShiftStatus.IN_PROGRESS
+  
+  const isInProgress = !isCompleted && !isCancelled && 
+                       (shift.status === ShiftStatus.IN_PROGRESS || !!shift.checkInTime)
 
   return (
     <div

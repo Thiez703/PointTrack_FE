@@ -225,8 +225,20 @@ export default function CalendarPage() {
 
   const renderShiftCard = (shift: ShiftSchema, index: number) => {
     const period = getShiftPeriod(shift.startTime)
-    const theme = (statusThemes[shift.status] || statusThemes.default) as typeof statusThemes.default
+    const isPast = shift.shiftDate < TODAY_STR
+
+    // Determine effective status for display
+    let effectiveStatus = shift.status;
+    
+    if (shift.status === ShiftStatus.COMPLETED || !!shift.checkOutTime || (!!shift.checkInTime && isPast)) {
+      effectiveStatus = ShiftStatus.COMPLETED;
+    } else if (shift.status === ShiftStatus.IN_PROGRESS || !!shift.checkInTime) {
+      effectiveStatus = ShiftStatus.IN_PROGRESS;
+    }
+
+    const theme = (statusThemes[effectiveStatus] || statusThemes.default) as typeof statusThemes.default
     const Icon = shiftIcons[period]
+    const isCompletedShift = effectiveStatus === ShiftStatus.COMPLETED
     
     return (
       <motion.div
@@ -235,7 +247,7 @@ export default function CalendarPage() {
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: index * 0.1, type: 'spring', stiffness: 300, damping: 24 }}
       >
-        <Card className={cn("overflow-hidden border-none shadow-sm mb-4", theme.bg)}>
+        <Card className={cn("overflow-hidden border-none shadow-sm mb-4", theme.bg, isCompletedShift && "opacity-75 grayscale-[0.5]")}>
           <CardContent className="p-0">
             <div className={cn("h-1.5 w-full", theme.accent)} />
             <div className="p-4">
@@ -253,7 +265,7 @@ export default function CalendarPage() {
                   </div>
                 </div>
                 <Badge variant="outline" className={cn("font-bold border-none", theme.badge)}>
-                  {theme.label}
+                  {isCompletedShift ? "Đã hoàn thành" : theme.label}
                 </Badge>
               </div>
 
@@ -283,28 +295,36 @@ export default function CalendarPage() {
               </div>
 
               <div className="mt-5 flex gap-2">
-                <button className="flex-1 py-2.5 bg-white border border-gray-100 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2">
-                  <Info className="w-3.5 h-3.5 text-orange-500" />
-                  Chi tiết
-                </button>
-                {shift.status === ShiftStatus.ASSIGNED && (
-                  <button 
-                    onClick={() => confirmMutation.mutate(shift.id)}
-                    disabled={confirmMutation.isPending}
-                    className="flex-1 py-2.5 bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-100 hover:bg-emerald-600 transition-colors flex items-center justify-center gap-2"
-                  >
-                    {confirmMutation.isPending ? 'Đang xác nhận...' : 'Xác nhận ca'}
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                )}
-                {(shift.status === ShiftStatus.CONFIRMED || shift.status === ShiftStatus.IN_PROGRESS) && (
-                  <button 
-                    onClick={() => router.push('/checkin')}
-                    className="flex-1 py-2.5 bg-orange-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-orange-100 hover:bg-orange-600 transition-colors flex items-center justify-center gap-2"
-                  >
-                    {shift.status === ShiftStatus.IN_PROGRESS ? 'Check-out' : 'Check-in ngay'}
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
+                {!isCompletedShift ? (
+                  <>
+                    <button className="flex-1 py-2.5 bg-white border border-gray-100 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2">
+                      <Info className="w-3.5 h-3.5 text-orange-500" />
+                      Chi tiết
+                    </button>
+                    {shift.status === ShiftStatus.ASSIGNED && !isPast && (
+                      <button 
+                        onClick={() => confirmMutation.mutate(shift.id)}
+                        disabled={confirmMutation.isPending}
+                        className="flex-1 py-2.5 bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-100 hover:bg-emerald-600 transition-colors flex items-center justify-center gap-2"
+                      >
+                        {confirmMutation.isPending ? 'Đang xác nhận...' : 'Xác nhận ca'}
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    {((shift.status === ShiftStatus.CONFIRMED && !isPast) || shift.status === ShiftStatus.IN_PROGRESS) && (
+                      <button 
+                        onClick={() => router.push('/checkin')}
+                        className="flex-1 py-2.5 bg-orange-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-orange-100 hover:bg-orange-600 transition-colors flex items-center justify-center gap-2"
+                      >
+                        {shift.status === ShiftStatus.IN_PROGRESS ? 'Check-out' : 'Check-in ngay'}
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <div className="w-full py-2 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] italic">
+                    Ca làm việc này đã hoàn thành
+                  </div>
                 )}
               </div>
             </div>
@@ -537,3 +557,4 @@ export default function CalendarPage() {
     </div>
   )
 }
+

@@ -32,7 +32,7 @@ Welcome to the **PointTrack** frontend repository. This document provides essent
 
 ### Environment Variables (`.env.local`)
 ```env
-NEXT_PUBLIC_API_URL=http://localhost:8080/api
+NEXT_PUBLIC_API_URL=http://localhost:8081/api
 NEXT_PUBLIC_TURNSTILE_SITE_KEY=your_site_key
 ```
 
@@ -96,3 +96,4 @@ The project follows a **Layered Workflow** to ensure clean separation of concern
 - `hooks/`: Custom React hooks (e.g., `useCurrentUser`, `useGeolocation`).
 - `lib/`: Utilities, Axios configuration, and Constants.
 - `stores/`: Zustand state definitions.
+

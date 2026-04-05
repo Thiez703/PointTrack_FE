@@ -71,7 +71,7 @@ Tạo file `.env.local` tại thư mục gốc và cấu hình các biến sau:
 NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA
 
 # URL Backend API
-NEXT_PUBLIC_API_URL=http://localhost:8080/api
+NEXT_PUBLIC_API_URL=http://localhost:8081/api
 ```
 
 ### 4. Chạy môi trường Phát triển (Development)
@@ -138,3 +138,4 @@ Tạo thư mục trang tương ứng trong `app/` và gọi Component đã xây 
 ---
 
 **Good Luck with your React Journey!** 🚀
+

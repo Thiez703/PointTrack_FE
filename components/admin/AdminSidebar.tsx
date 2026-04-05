@@ -14,7 +14,8 @@ import {
   LogOut,
   ChevronRight,
   ChevronLeft,
-  Menu
+  Menu,
+  FileText
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -31,6 +32,7 @@ const menuItems = [
   { name: "Lập lịch", href: "/admin/schedule", icon: CalendarCheck },
   { name: "Ca mẫu", href: "/admin/shift-templates", icon: Clock },
   { name: "Chấm công", href: "/admin/attendance", icon: Calendar },
+  { name: "Giải trình", href: "/admin/attendance/explanations", icon: FileText },
   { name: "Bậc lương", href: "/admin/salary-levels", icon: Banknote },
   { name: "Cấu hình", href: "/admin/settings", icon: Settings },
 ];

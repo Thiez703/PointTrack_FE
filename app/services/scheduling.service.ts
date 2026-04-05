@@ -25,8 +25,8 @@ export interface ShiftTemplate {
 }
 
 export class SchedulingService {
-  private static readonly SHIFT_PREFIX = '/v1/shifts'
-  private static readonly TEMPLATE_PREFIX = '/v1'
+  private static readonly SHIFT_PREFIX = 'shifts'
+  private static readonly TEMPLATE_PREFIX = ''
 
   /**
    * 5. Lấy danh sách ca (filter tuần/tháng/NV)
@@ -82,7 +82,7 @@ export class SchedulingService {
 
   static async getShiftTemplates(): Promise<ApiAttendanceResponse<ShiftTemplate[]>> {
     const response = await apiJava.get<ApiAttendanceResponse<ShiftTemplate[]>>(
-      `${this.TEMPLATE_PREFIX}/shift-templates`
+      'shift-templates'
     )
     return response.data
   }
@@ -169,6 +169,17 @@ export class SchedulingService {
   static async claimShift(shiftId: number): Promise<ApiAttendanceResponse<void>> {
     const response = await apiJava.post<ApiAttendanceResponse<void>>(
       `${this.SHIFT_PREFIX}/${shiftId}/claim`
+    )
+    return response.data
+  }
+
+  /**
+   * Lấy ca hôm nay của nhân viên đang đăng nhập
+   * GET /shifts/my-today
+   */
+  static async getMyTodayShifts(): Promise<ApiAttendanceResponse<ShiftSchema[]>> {
+    const response = await apiJava.get<ApiAttendanceResponse<ShiftSchema[]>>(
+      `${this.SHIFT_PREFIX}/my-today`
     )
     return response.data
   }

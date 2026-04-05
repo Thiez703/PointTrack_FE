@@ -77,3 +77,4 @@ export const VerifyOtpSchema = z.object({
 
 export type ForgotPasswordFormValues = z.infer<typeof ForgotPasswordSchema>
 export type VerifyOtpFormValues = z.infer<typeof VerifyOtpSchema>
+

@@ -39,6 +39,7 @@ export interface Employee {
   updatedAt: string;
 }
 
+/** GET /v1/employees/statistics — dùng cho Admin Dashboard (có trend, rate) */
 export interface PersonnelStats {
   totalEmployees: number;
   activeEmployees: number;
@@ -46,6 +47,14 @@ export interface PersonnelStats {
   newEmployeesThisMonth: number;
   totalTrend: string;
   activeRate: string;
+}
+
+/** GET /v1/employees/stats — tóm tắt đơn giản, dùng newThisMonth thay vì newEmployeesThisMonth */
+export interface EmployeeSummaryStats {
+  totalEmployees: number;
+  activeEmployees: number;
+  onLeaveEmployees: number;
+  newThisMonth: number;
 }
 
 // --- Module 3: Shift Template ---
@@ -119,3 +128,4 @@ export interface ApiResponse<T> {
   message: string;
   data: T;
 }
+

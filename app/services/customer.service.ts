@@ -6,49 +6,49 @@ import type {
   CustomerListResponse
 } from '@/app/types/customer'
 
-const PREFIX = '/v1/customers'
+const PREFIX = 'customers'
 
 export const customerService = {
 
-  // GET /v1/customers
+  // GET /customers
   getList: (params: CustomerListParams): Promise<CustomerListResponse> =>
     api.get(PREFIX, { params }).then(res => res.data.data),
 
-  // GET /v1/customers/:id
+  // GET /customers/:id
   getById: (id: number | string): Promise<{ data: Customer }> =>
     api.get(`${PREFIX}/${id}`).then(res => res.data),
 
-  // POST /v1/customers
+  // POST /customers
   create: (data: CustomerCreateRequest): Promise<{
     data: Customer
     warning?: string
   }> =>
     api.post(PREFIX, data).then(res => res.data),
 
-  // PUT /v1/customers/:id
+  // PUT /customers/:id
   update: (id: number | string, data: Partial<CustomerCreateRequest>): Promise<{
     data: Customer
     warning?: string
   }> =>
     api.put(`${PREFIX}/${id}`, data).then(res => res.data),
 
-  // DELETE /v1/customers/:id (soft delete)
+  // DELETE /customers/:id (soft delete)
   deactivate: (id: number | string): Promise<{ message: string }> =>
     api.delete(`${PREFIX}/${id}`).then(res => res.data),
 
-  // PUT /v1/customers/:id/gps
+  // PUT /customers/:id/gps
   updateGps: (id: number | string, lat: number, lng: number) =>
     api.put(`${PREFIX}/${id}/gps`, { latitude: lat, longitude: lng }).then(res => res.data),
 
-  // POST /v1/customers/:id/geocode
+  // POST /customers/:id/geocode
   reGeocode: (id: number | string) =>
     api.post(`${PREFIX}/${id}/geocode`).then(res => res.data),
 
-  // GET /v1/customers/active-with-gps
+  // GET /customers/active-with-gps
   getActiveWithGps: (): Promise<{ data: Customer[] }> =>
     api.get(`${PREFIX}/active-with-gps`).then(res => res.data),
 
-  // POST /v1/customers/import
+  // POST /customers/import
   importExcel: (file: File): Promise<{
     data: {
       success: number
@@ -65,7 +65,7 @@ export const customerService = {
     }).then(res => res.data)
   },
 
-  // GET /v1/customers/import/template
+  // GET /customers/import/template
   downloadTemplate: () =>
     api.get(`${PREFIX}/import/template`, { responseType: 'blob' })
       .then((res: any) => {

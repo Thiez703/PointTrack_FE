@@ -86,3 +86,4 @@ export const calculateShiftDuration = (
 export const getWeekYearString = (date: Date) => {
   return format(date, "yyyy-'W'II", { locale: vi })
 }
+

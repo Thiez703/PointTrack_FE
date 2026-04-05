@@ -100,8 +100,8 @@ export default function ProfilePage() {
                         {/* Highlights Row */}
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 lg:gap-6">
                             {[
-                                { label: 'Lương dự tính', value: new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(user.workStatistics.summary.estimatedSalary || 0), icon: BarChart3, color: 'text-green-600', bg: 'bg-green-50' },
-                                { label: 'Tổng giờ công', value: `${user.workStatistics.summary.totalWorkHours || 0} Giờ`, icon: Clock, color: 'text-blue-600', bg: 'bg-blue-50' },
+                                { label: 'Lương dự kiến', value: new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(user.workStatistics.summary.estimatedSalaryThisMonth || 0), icon: BarChart3, color: 'text-green-600', bg: 'bg-green-50' },
+                                { label: 'Tổng giờ làm', value: `${user.workStatistics.summary.totalHoursThisMonth || 0} Giờ`, icon: Clock, color: 'text-blue-600', bg: 'bg-blue-50' },
                                 { label: 'Ngày công tháng', value: `${user.workStatistics.summary.totalWorkDaysThisMonth || 0} Ngày`, icon: Calendar, color: 'text-orange-600', bg: 'bg-orange-50' }
                             ].map((stat, i) => (
                                 <motion.div 
@@ -266,3 +266,4 @@ export default function ProfilePage() {
         </div>
     );
 }
+

@@ -43,7 +43,7 @@ export default function FirstChangePasswordPage() {
     onSuccess: async (data) => {
       setAuth(data);
       // Clear the server-side forcePasswordChange cookie
-      await fetch("/api/v1/auth/clear-force-password", { method: "POST" });
+      await fetch("/api/auth/clear-force-password", { method: "POST" });
       toast.success("Đổi mật khẩu thành công! Chào mừng bạn.");
       router.push(data.role === "ADMIN" ? "/admin" : "/");
     },
@@ -187,3 +187,4 @@ export default function FirstChangePasswordPage() {
     </div>
   );
 }
+

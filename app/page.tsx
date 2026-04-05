@@ -24,6 +24,12 @@ export default function Home() {
     });
 
     const user = profileResponse?.data;
+    
+    // Debug log to check API data in browser console
+    if (user) {
+        console.log("Dashboard - User workStatistics:", user.workStatistics);
+    }
+
     const stats = user?.workStatistics;
     const weeklyChartData = stats?.history || [
         { month: 'T2', days: 0 }, { month: 'T3', days: 0 }, { month: 'T4', days: 0 },
@@ -37,13 +43,32 @@ export default function Home() {
     ];
 
     const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+        return new Intl.NumberFormat('vi-VN', { 
+            style: 'currency', 
+            currency: 'VND',
+            maximumFractionDigits: 0
+        }).format(amount);
     };
 
     const statCards = [
-        { label: 'Lương dự tính', value: formatCurrency(stats?.summary?.estimatedSalary || 0), icon: Zap, color: 'from-green-400 to-green-500' },
-        { label: 'Tổng giờ công', value: `${stats?.summary?.totalWorkHours || 0} giờ`, icon: Clock, color: 'from-blue-400 to-blue-500' },
-        { label: 'Đi muộn', value: `${stats?.summary?.lateDaysThisMonth || 0} lần`, icon: AlertTriangle, color: 'from-red-400 to-red-500' },
+        { 
+            label: 'Lương dự kiến', 
+            value: formatCurrency(stats?.summary?.estimatedSalaryThisMonth || 0), 
+            icon: Zap, 
+            color: 'from-green-400 to-green-500' 
+        },
+        { 
+            label: 'Tổng giờ làm', 
+            value: `${(stats?.summary?.totalHoursThisMonth || 0).toFixed(1)} giờ`, 
+            icon: Clock, 
+            color: 'from-blue-400 to-blue-500' 
+        },
+        { 
+            label: 'Đi muộn', 
+            value: `${stats?.summary?.lateDaysThisMonth || 0} lần`, 
+            icon: AlertTriangle, 
+            color: 'from-red-400 to-red-500' 
+        },
     ];
 
     // Chỉnh sửa điều kiện Loading: Hiển thị loading cho đến khi có dữ liệu user chi tiết
@@ -247,21 +272,21 @@ export default function Home() {
 
                         {/* HIGH IMPACT ACTION: Check-in */}
                         <motion.button
-                            whileHover={{ y: -8, scale: 1.01 }}
+                            whileHover={{ y: -4, scale: 1.01 }}
                             whileTap={{ scale: 0.98 }} 
                             onClick={() => router.push('/checkin')} 
-                            className="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-[40px] p-8 sm:p-10 flex items-center gap-8 shadow-2xl shadow-orange-200 dark:shadow-none border border-white/10 group relative overflow-hidden"
+                            className="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-[32px] p-5 sm:p-6 flex items-center gap-4 sm:gap-6 shadow-xl shadow-orange-200 dark:shadow-none border border-white/10 group relative overflow-hidden"
                         >
-                            <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32 blur-3xl group-hover:bg-white/10 transition-all" />
-                            <div className="w-20 h-20 sm:w-24 sm:h-24 bg-white/20 rounded-[32px] flex items-center justify-center backdrop-blur-xl border border-white/30 group-hover:rotate-6 transition-all shadow-2xl">
-                                <MapPin className="w-10 h-10 sm:w-12 sm:h-12 text-white" />
+                            <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full -mr-24 -mt-24 blur-3xl group-hover:bg-white/10 transition-all" />
+                            <div className="w-14 h-14 sm:w-16 sm:h-16 bg-white/20 rounded-[24px] flex items-center justify-center backdrop-blur-xl border border-white/30 group-hover:rotate-6 transition-all shadow-lg">
+                                <MapPin className="w-7 h-7 sm:w-8 sm:h-8 text-white" />
                             </div>
                             <div className="flex-1 text-left relative z-10">
-                                <p className="font-black text-2xl sm:text-4xl tracking-tighter mb-2">Chấm công thông minh</p>
-                                <p className="text-orange-100 text-sm sm:text-base font-bold opacity-80 uppercase tracking-widest">Hệ thống GPS Đang sẵn sàng • Nhấn để bắt đầu</p>
+                                <p className="font-black text-xl sm:text-2xl tracking-tighter mb-1">Chấm công thông minh</p>
+                                <p className="text-orange-100 text-[10px] sm:text-xs font-bold opacity-80 uppercase tracking-widest leading-tight">Hệ thống GPS Sẵn sàng • Nhấn để bắt đầu</p>
                             </div>
-                            <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center group-hover:translate-x-2 transition-transform shadow-xl">
-                                <ChevronRight className="w-7 h-7 text-white" strokeWidth={3} />
+                            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center group-hover:translate-x-1 transition-transform shadow-lg">
+                                <ChevronRight className="w-5 h-5 text-white" strokeWidth={3} />
                             </div>
                         </motion.button>
 
@@ -388,3 +413,4 @@ export default function Home() {
         </div>
     );
 }
+

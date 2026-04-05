@@ -30,11 +30,25 @@ export type CheckOutFormData = {
 export type CheckOutResponse = {
   attendanceRecordId: number
   status: string
+  checkInTime: string | null
   checkOutTime: string
   actualMinutes: number
   earlyLeaveMinutes: number
   otMultiplier: number
+  workedMinutes: number | null
+  workedHours: number | null
+  estimatedSalary: number | null
+  currency: string | null
+  shiftName: string | null
   message: string
+}
+
+export interface PaginatedResponse<T> {
+  content: T[]
+  totalElements: number
+  totalPages: number
+  size: number
+  number: number
 }
 
 /**
@@ -47,6 +61,25 @@ export interface ApiAttendanceResponse<T> {
   warning?: string | null
   errorCode?: string | null
   conflictDetail?: ShiftConflictResponse | null
+}
+
+export interface AttendanceExplanation {
+  id: number;
+  employeeId: number;
+  employeeName: string; // Map với userName từ Backend nếu cần
+  userName?: string;    // Thêm dự phòng
+  attendanceId: number;
+  explanationType: 'LATE' | 'GPS_ERROR' | 'MISSING_CHECKOUT' | 'OTHER';
+  type?: string;        // Thêm dự phòng
+  reason: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  reviewNote?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReviewExplanationRequest {
+  reviewNote: string;
 }
 
 export enum ShiftType {
@@ -167,3 +200,4 @@ export interface CopyWeekResponse {
   skipped: number
   conflicts: ShiftConflictResponse[]
 }
+

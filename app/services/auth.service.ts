@@ -6,7 +6,7 @@ import {
 } from "@/app/types/auth.schema";
 
 export class AuthService {
-  private static readonly PREFIX = '/v1/auth'
+  private static readonly PREFIX = 'auth'
 
   // ─── Direct Java BE calls (used in Next.js server-side proxy routes) ───
 
@@ -15,13 +15,13 @@ export class AuthService {
     return response.data
   }
 
-  /** Called by /api/v1/auth/refresh route — sends refreshToken, gets new tokens back */
+  /** Called by /api/auth/refresh route — sends refreshToken, gets new tokens back */
   static async refresh(refreshToken: string): Promise<AuthResponse> {
     const response = await apiJava.post<AuthResponse>(`${this.PREFIX}/token/refresh`, { refreshToken })
     return response.data
   }
 
-  /** Called by /api/v1/auth/logout route — requires token for server-side proxy */
+  /** Called by /api/auth/logout route — requires token for server-side proxy */
   static async logout(token?: string): Promise<void> {
     await apiJava.post(
       `${this.PREFIX}/logout`,
@@ -33,29 +33,29 @@ export class AuthService {
   // ─── Via Next.js proxy (client-side, sets/clears HttpOnly cookies) ───
 
   static async login(userData: LoginFormValues): Promise<AuthResponse> {
-    const response = await apiNext.post<AuthResponse>('/v1/auth/login', userData)
+    const response = await apiNext.post<AuthResponse>('auth/login', userData)
     return response.data
   }
 
   /** Called by axios interceptor when 401 — proxy handles cookie refresh */
   static async refreshAuthTokenNext(): Promise<AuthResponse> {
-    const response = await apiNext.post<AuthResponse>('/v1/auth/refresh')
+    const response = await apiNext.post<AuthResponse>('auth/refresh')
     return response.data
   }
 
   static async logoutNext(): Promise<void> {
-    await apiNext.post('/v1/auth/logout')
+    await apiNext.post('auth/logout')
   }
 
   // ─── Session info ───
 
   static async meNext(): Promise<UserMeResponse> {
-    const response = await apiNext.get<UserMeResponse>('/v1/auth/me')
+    const response = await apiNext.get<UserMeResponse>('auth/me')
     return response.data
   }
 
   static async meTokenNext(): Promise<AuthResponse> {
-    const response = await fetch('/api/v1/auth/me-token', {
+    const response = await fetch('/api/auth/me-token', {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
     })
@@ -72,7 +72,7 @@ export class AuthService {
     return response.data
   }
 
-  /** GET /api/v1/auth/profile — returns the object directly (no wrapper) */
+  /** GET /api/auth/profile — returns the object directly (no wrapper) */
   static async getProfile(): Promise<UserMeResponse> {
     const response = await apiJava.get<UserMeResponse>(`${this.PREFIX}/profile`)
     return response.data

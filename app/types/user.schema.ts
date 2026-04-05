@@ -26,9 +26,12 @@ export interface WorkStatistics {
     lateDaysThisMonth: number;
     estimatedSalary: number;    // Lương dự tính (BE xử lý)
     totalWorkHours: number;      // Tổng giờ công (BE xử lý)
+    totalHoursThisMonth: number;
+    estimatedSalaryThisMonth: number;
   };
   history: Array<{
     month: string; // Định dạng "T1", "T2", ...
     days: number;
   }>;
 }
+

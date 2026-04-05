@@ -55,3 +55,4 @@ export const getErrorMessage = (error: any): string => {
 
   return message || ERROR_MESSAGES.UNKNOWN_ERROR
 }
+

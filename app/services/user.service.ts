@@ -4,7 +4,7 @@ type EditProfileFormValues = ProfileFormValues
 import { Client } from '@stomp/stompjs'
 
 export class UserService {
-  private static readonly PREFIX = '/user'
+  private static readonly PREFIX = 'user'
   static async signup(userData: SignupFormValues): Promise<UserType> {
     const response = await apiJava.post<UserType>(`${this.PREFIX}/signup`, userData)
     return response.data
@@ -66,7 +66,7 @@ export class UserService {
   }
 
   static async getMe(): Promise<EmployeeProfileResponse> {
-    const response = await apiJava.get<EmployeeProfileResponse>('/v1/employees/me')
+    const response = await apiJava.get<EmployeeProfileResponse>('employees/me')
     return response.data
   }
 
@@ -88,5 +88,3 @@ export class UserService {
     }
   }
 }
-
-

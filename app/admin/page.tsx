@@ -9,18 +9,117 @@ import {
   TrendingUp, 
   ArrowUpRight,
   ArrowDownRight,
-  Activity
+  Activity,
+  Loader2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const stats = [
-  { label: "Nhân viên hoạt động", value: "1,284", trend: "+12%", up: true, icon: Users, color: "text-blue-600", bg: "bg-blue-50" },
-  { label: "Điểm khách hàng", value: "42", trend: "+2", up: true, icon: MapPin, color: "text-orange-600", bg: "bg-orange-50" },
-  { label: "Check-in hôm nay", value: "856", trend: "-5%", up: false, icon: CalendarCheck, color: "text-green-600", bg: "bg-green-50" },
-  { label: "Tỷ lệ đi muộn", value: "3.2%", trend: "-0.5%", up: true, icon: Clock, color: "text-purple-600", bg: "bg-purple-50" },
-];
+import { useQuery } from "@tanstack/react-query";
+import { AdminService } from "@/app/services/admin.service";
+import { customerService } from "@/app/services/customer.service";
+import { formatToISODate } from "@/lib/dateUtils";
+import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
+  Cell
+} from "recharts";
+import { subDays, format } from "date-fns";
+import { vi } from "date-fns/locale";
 
 export default function AdminDashboard() {
+  const today = new Date();
+  const todayStr = formatToISODate(today);
+  const sevenDaysAgo = formatToISODate(subDays(today, 6));
+
+  const { data: personnelStats, isLoading: isPersonnelLoading } = useQuery({
+    queryKey: ["personnel-stats"],
+    queryFn: () => AdminService.getPersonnelStats(),
+  });
+
+  const { data: customerData, isLoading: isCustomerLoading } = useQuery({
+    queryKey: ["customer-stats"],
+    queryFn: () => customerService.getList({ size: 1 }),
+  });
+
+  const { data: attendanceData, isLoading: isAttendanceLoading } = useQuery({
+    queryKey: ["attendance-stats-today", todayStr],
+    queryFn: () => AdminService.getAttendanceRecords({ startDate: todayStr, endDate: todayStr }),
+  });
+
+  const { data: chartDataRaw, isLoading: isChartLoading } = useQuery({
+    queryKey: ["attendance-chart-7days", sevenDaysAgo, todayStr],
+    queryFn: () => AdminService.getAttendanceRecords({ startDate: sevenDaysAgo, endDate: todayStr }),
+  });
+
+  const isLoading = isPersonnelLoading || isCustomerLoading || isAttendanceLoading || isChartLoading;
+
+  if (isLoading) {
+    return (
+      <div className="flex h-[60vh] items-center justify-center">
+        <Loader2 className="w-10 h-10 animate-spin text-orange-500" />
+      </div>
+    );
+  }
+
+  // Process chart data
+  const chartData = Array.from({ length: 7 }).map((_, i) => {
+    const date = subDays(today, 6 - i);
+    const dateStr = formatToISODate(date);
+    const records = Array.isArray(chartDataRaw?.data) ? chartDataRaw.data : [];
+    const dayRecords = records.filter(r => r.checkInTime && r.checkInTime.startsWith(dateStr));
+    
+    return {
+      name: format(date, "dd/MM", { locale: vi }),
+      count: dayRecords.length,
+      fullDate: dateStr
+    };
+  });
+
+  const stats = [
+    { 
+      label: "Nhân viên hoạt động", 
+      value: personnelStats?.data?.activeEmployees?.toLocaleString() || "0", 
+      trend: personnelStats?.data?.totalTrend || "0%", 
+      up: !personnelStats?.data?.totalTrend?.startsWith("-"), 
+      icon: Users, 
+      color: "text-blue-600", 
+      bg: "bg-blue-50" 
+    },
+    { 
+      label: "Điểm khách hàng", 
+      value: customerData?.totalElements?.toLocaleString() || "0", 
+      trend: "+0", 
+      up: true, 
+      icon: MapPin, 
+      color: "text-orange-600", 
+      bg: "bg-orange-50" 
+    },
+    { 
+      label: "Check-in hôm nay", 
+      value: (Array.isArray(attendanceData?.data) ? attendanceData.data.length : 0).toLocaleString(), 
+      trend: "0%", 
+      up: true, 
+      icon: CalendarCheck, 
+      color: "text-green-600", 
+      bg: "bg-green-50" 
+    },
+    { 
+      label: "Tỷ lệ đi muộn", 
+      value: (Array.isArray(attendanceData?.data) && attendanceData.data.length > 0)
+        ? ((attendanceData.data.filter(r => r.status === "LATE").length / attendanceData.data.length) * 100).toFixed(1) + "%" 
+        : "0%", 
+      trend: "0%", 
+      up: true, 
+      icon: Clock, 
+      color: "text-purple-600", 
+      bg: "bg-purple-50" 
+    },
+  ];
+
   return (
     <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
       {/* Welcome Section */}
@@ -79,8 +178,41 @@ export default function AdminDashboard() {
                   <option>30 ngày gần nhất</option>
                </select>
             </div>
-            <div className="flex-1 border-2 border-dashed border-gray-100 rounded-3xl flex items-center justify-center text-gray-300 font-bold italic">
-               [ Biểu đồ thống kê sẽ hiển thị tại đây ]
+            <div className="flex-1 h-[300px]">
+               <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData}>
+                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                     <XAxis 
+                        dataKey="name" 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fontSize: 12, fontWeight: 700, fill: '#9ca3af' }}
+                        dy={10}
+                     />
+                     <YAxis 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fontSize: 12, fontWeight: 700, fill: '#9ca3af' }}
+                     />
+                     <Tooltip 
+                        cursor={{ fill: '#f97316', opacity: 0.1 }}
+                        contentStyle={{ 
+                           borderRadius: '16px', 
+                           border: 'none', 
+                           boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                           fontWeight: 'bold'
+                        }}
+                     />
+                     <Bar dataKey="count" radius={[10, 10, 0, 0]} barSize={40}>
+                        {chartData.map((entry, index) => (
+                           <Cell 
+                              key={`cell-${index}`} 
+                              fill={entry.fullDate === todayStr ? '#f97316' : '#fed7aa'} 
+                           />
+                        ))}
+                     </Bar>
+                  </BarChart>
+               </ResponsiveContainer>
             </div>
          </div>
 
@@ -98,3 +230,4 @@ export default function AdminDashboard() {
     </div>
   );
 }
+

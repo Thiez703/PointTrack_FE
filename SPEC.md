@@ -29,7 +29,7 @@
 
 ## 1. TỔNG QUAN DỰ ÁN
 
-**PointTrack** là ứng dụng web quản lý chấm công nhân viên dựa trên GPS. Frontend được xây dựng bằng **Next.js 15 App Router**, giao tiếp với backend **Spring Boot Java** (mặc định `http://localhost:8080/api`) thông qua lớp proxy API của Next.js.
+**PointTrack** là ứng dụng web quản lý chấm công nhân viên dựa trên GPS. Frontend được xây dựng bằng **Next.js 15 App Router**, giao tiếp với backend **Spring Boot Java** (mặc định `http://localhost:8081/api`) thông qua lớp proxy API của Next.js.
 
 ### Đặc điểm chính
 - Chấm công dựa trên GPS (check-in/check-out kèm xác thực vị trí)
@@ -169,9 +169,9 @@ app/
 
 ### 4.1 Đăng nhập
 1. User nhập số điện thoại + mật khẩu + CAPTCHA Turnstile
-2. `LoginForm` gọi `AuthService.login()` → `POST /api/v1/auth/login` (Next.js proxy)
-3. Next.js API route `app/api/v1/auth/login/route.ts`:
-   - Gọi `AuthService.loginJava()` → `POST /v1/auth/login` (Spring Boot trực tiếp)
+2. `LoginForm` gọi `AuthService.login()` → `POST /api/auth/login` (Next.js proxy)
+3. Next.js API route `app/api/auth/login/route.ts`:
+   - Gọi `AuthService.loginJava()` → `POST /auth/login` (Spring Boot trực tiếp)
    - Decode JWT để lấy `exp`
    - Set HttpOnly cookies: `accessToken` (expires = JWT exp), `refreshToken` (expires = JWT exp)
    - Nếu `forcePasswordChange = true` → set cookie `forcePasswordChange=true`
@@ -186,15 +186,15 @@ app/
 ### 4.2 Khôi phục session (Page reload)
 1. `components/providers/UserInitializer.tsx` mount khi app load
 2. Gọi `useCurrentUser()` hook:
-   - `AuthService.meTokenNext()` → `GET /api/v1/auth/me-token` → trả `AuthResponse` từ cookie
-   - `AuthService.me(accessToken)` → `GET /v1/auth/me` → trả user profile đầy đủ
+   - `AuthService.meTokenNext()` → `GET /api/auth/me-token` → trả `AuthResponse` từ cookie
+   - `AuthService.me(accessToken)` → `GET /auth/me` → trả user profile đầy đủ
 3. Sync data vào Zustand (`setUserDetail`, `setAccessAndRefreshToken`)
 4. Sync tokens vào localStorage (cho `apiJava` interceptor)
 
 ### 4.3 Refresh Token
 1. `apiJava` response interceptor nhận 401
 2. Nếu không phải đang refresh → đặt `isRefreshing = true`, thêm request vào queue
-3. Gọi `POST /api/v1/auth/refresh` (Next.js proxy):
+3. Gọi `POST /api/auth/refresh` (Next.js proxy):
    - Lấy `refreshToken` từ cookie
    - Gọi `AuthService.refresh(refreshToken)` → Spring Boot
    - Decode tokens mới, set cookies mới
@@ -204,7 +204,7 @@ app/
 5. Nếu refresh thất bại → `logout()`, redirect `/login`
 
 ### 4.4 Đăng xuất
-1. Gọi `AuthService.logoutNext()` → `POST /api/v1/auth/logout`
+1. Gọi `AuthService.logoutNext()` → `POST /api/auth/logout`
 2. Next.js API route xóa cookies `accessToken` + `refreshToken`
 3. Gọi `AuthService.logout()` với token (best-effort, tiếp tục dù fail)
 4. Zustand `logout()`: xóa localStorage, reset store
@@ -213,14 +213,14 @@ app/
 ### 4.5 Đổi mật khẩu lần đầu
 1. Middleware bắt cookie `forcePasswordChange=true` → redirect `/auth/first-change-password`
 2. User điền mật khẩu mới (Zod validation: min 8 chars, 1 uppercase, 1 digit)
-3. Gọi `AuthService.firstChangePassword()` → `PUT /v1/auth/password/first-change`
-4. Gọi `POST /api/v1/auth/clear-force-password` → xóa cookie `forcePasswordChange`
+3. Gọi `AuthService.firstChangePassword()` → `PUT /auth/password/first-change`
+4. Gọi `POST /api/auth/clear-force-password` → xóa cookie `forcePasswordChange`
 5. Redirect `/`
 
 ### 4.6 Quên mật khẩu / Reset qua OTP
-1. Nhập số điện thoại → `POST /v1/auth/password/forgot`
-2. Nhập OTP 6 chữ số → `POST /v1/auth/password/verify-otp` → nhận `resetToken`
-3. Nhập mật khẩu mới → `PUT /v1/auth/password/reset` với `resetToken`
+1. Nhập số điện thoại → `POST /auth/password/forgot`
+2. Nhập OTP 6 chữ số → `POST /auth/password/verify-otp` → nhận `resetToken`
+3. Nhập mật khẩu mới → `PUT /auth/password/reset` với `resetToken`
 
 ---
 
@@ -232,7 +232,7 @@ Xuất **2 Axios instances**:
 
 #### `apiJava` — Gọi trực tiếp Spring Boot (server-side & đặc biệt)
 ```typescript
-baseURL: NEXT_PUBLIC_API_BASE_URL || NEXT_PUBLIC_API_URL || 'http://localhost:8080/api'
+baseURL: NEXT_PUBLIC_API_BASE_URL || NEXT_PUBLIC_API_URL || 'http://localhost:8081/api'
 ```
 - **Request interceptor**: Đính `Authorization: Bearer <token>` từ `tokenUtils.getToken()`
 - **Response interceptor (401 handling)**:
@@ -272,21 +272,21 @@ Tất cả service files nằm trong `app/services/`, dùng `apiNext` cho client
 
 | Method | HTTP | Endpoint | Mô tả |
 |---|---|---|---|
-| `loginJava(userData)` | POST | `/v1/auth/login` | Đăng nhập trực tiếp Spring Boot |
-| `login(userData)` | POST | `/api/v1/auth/login` | Đăng nhập qua Next.js proxy (set cookie) |
-| `refresh(refreshToken)` | POST | `/v1/auth/token/refresh` | Làm mới token |
-| `logout(token?)` | POST | `/v1/auth/logout` | Đăng xuất khỏi backend |
-| `logoutNext()` | POST | `/api/v1/auth/logout` | Xóa cookie qua Next.js proxy |
-| `meNext()` | GET | `/api/v1/auth/me` | Lấy profile qua Next.js proxy |
-| `meTokenNext()` | GET | `/api/v1/auth/me-token` | Lấy AuthResponse từ cookie |
-| `me(token?)` | GET | `/v1/auth/me` | Lấy profile trực tiếp Spring Boot |
-| `getProfile()` | GET | `/v1/auth/profile` | Lấy profile đầy đủ |
-| `updateProfile(data)` | PUT | `/v1/auth/profile` | Cập nhật profile |
-| `forgotPassword(phoneNumber)` | POST | `/v1/auth/password/forgot` | Quên mật khẩu |
-| `verifyOtp(phoneNumber, otp)` | POST | `/v1/auth/password/verify-otp` | Xác thực OTP |
-| `resetPasswordWithToken(data)` | PUT | `/v1/auth/password/reset` | Reset mật khẩu với token |
-| `changePassword(data)` | PUT | `/v1/auth/password/change` | Đổi mật khẩu |
-| `firstChangePassword(data)` | PUT | `/v1/auth/password/first-change` | Đổi mật khẩu lần đầu (bắt buộc) |
+| `loginJava(userData)` | POST | `/auth/login` | Đăng nhập trực tiếp Spring Boot |
+| `login(userData)` | POST | `/api/auth/login` | Đăng nhập qua Next.js proxy (set cookie) |
+| `refresh(refreshToken)` | POST | `/auth/token/refresh` | Làm mới token |
+| `logout(token?)` | POST | `/auth/logout` | Đăng xuất khỏi backend |
+| `logoutNext()` | POST | `/api/auth/logout` | Xóa cookie qua Next.js proxy |
+| `meNext()` | GET | `/api/auth/me` | Lấy profile qua Next.js proxy |
+| `meTokenNext()` | GET | `/api/auth/me-token` | Lấy AuthResponse từ cookie |
+| `me(token?)` | GET | `/auth/me` | Lấy profile trực tiếp Spring Boot |
+| `getProfile()` | GET | `/auth/profile` | Lấy profile đầy đủ |
+| `updateProfile(data)` | PUT | `/auth/profile` | Cập nhật profile |
+| `forgotPassword(phoneNumber)` | POST | `/auth/password/forgot` | Quên mật khẩu |
+| `verifyOtp(phoneNumber, otp)` | POST | `/auth/password/verify-otp` | Xác thực OTP |
+| `resetPasswordWithToken(data)` | PUT | `/auth/password/reset` | Reset mật khẩu với token |
+| `changePassword(data)` | PUT | `/auth/password/change` | Đổi mật khẩu |
+| `firstChangePassword(data)` | PUT | `/auth/password/first-change` | Đổi mật khẩu lần đầu (bắt buộc) |
 
 ### 6.2 `user.service.ts` — `UserService`
 
@@ -304,7 +304,7 @@ Tất cả service files nằm trong `app/services/`, dùng `apiNext` cho client
 | `setDefaultAddress(id)` | POST | `/user/address/{id}/set-default` | Đặt địa chỉ mặc định |
 | `getAll()` | GET | `/user/getAll` | Lấy tất cả user |
 | `uploadAvatar(formData)` | POST | `/user/upload-avatar` | Upload avatar |
-| `getMe()` | GET | `/v1/employees/me` | Lấy profile nhân viên hiện tại |
+| `getMe()` | GET | `/employees/me` | Lấy profile nhân viên hiện tại |
 | `connectUser(stompClient, user)` | STOMP | `/app/user.connectUser` | Kết nối WebSocket |
 | `disconnectUser(stompClient, user)` | STOMP | `/app/user.disconnectUser` | Ngắt kết nối WebSocket |
 
@@ -313,51 +313,51 @@ Tất cả service files nằm trong `app/services/`, dùng `apiNext` cho client
 #### Personnel (Nhân sự)
 | Method | HTTP | Endpoint |
 |---|---|---|
-| `getPersonnel(params)` | GET | `/v1/employees` (paginated) |
-| `getPersonnelStats()` | GET | `/v1/employees/statistics` |
-| `createEmployee(data)` | POST | `/v1/employees` |
-| `deleteEmployee(id)` | DELETE | `/v1/employees/{id}` |
-| `updateEmployee(id, data)` | PUT | `/v1/employees/{id}` |
-| `updateEmployeeStatus(id, status)` | PATCH | `/v1/employees/{id}/status` |
-| `assignSalaryLevel(employeeId, salaryLevelId)` | PATCH | `/v1/employees/{employeeId}/salary-level` |
+| `getPersonnel(params)` | GET | `/employees` (paginated) |
+| `getPersonnelStats()` | GET | `/employees/statistics` |
+| `createEmployee(data)` | POST | `/employees` |
+| `deleteEmployee(id)` | DELETE | `/employees/{id}` |
+| `updateEmployee(id, data)` | PUT | `/employees/{id}` |
+| `updateEmployeeStatus(id, status)` | PATCH | `/employees/{id}/status` |
+| `assignSalaryLevel(employeeId, salaryLevelId)` | PATCH | `/employees/{employeeId}/salary-level` |
 
 #### Shift Templates
 | Method | HTTP | Endpoint |
 |---|---|---|
-| `createShiftTemplate(data)` | POST | `/v1/shift-templates` |
-| `updateShiftTemplate(id, data)` | PUT | `/v1/shift-templates/{id}` |
-| `deleteShiftTemplate(id)` | DELETE | `/v1/shift-templates/{id}` |
+| `createShiftTemplate(data)` | POST | `/shift-templates` |
+| `updateShiftTemplate(id, data)` | PUT | `/shift-templates/{id}` |
+| `deleteShiftTemplate(id)` | DELETE | `/shift-templates/{id}` |
 
 #### Attendance & Scheduling
 | Method | HTTP | Endpoint |
 |---|---|---|
-| `scheduleWork(data)` | POST | `/v1/attendance/schedule` |
-| `getAttendanceRecords(params)` | GET | `/v1/attendance/records` |
-| `approveExplanation(explanationId)` | POST | `/v1/attendance/approve` |
+| `scheduleWork(data)` | POST | `/attendance/schedule` |
+| `getAttendanceRecords(params)` | GET | `/attendance/records` |
+| `approveExplanation(explanationId)` | POST | `/attendance/approve` |
 
 #### Settings
 | Method | HTTP | Endpoint |
 |---|---|---|
-| `getSettings()` | GET | `/v1/settings` |
-| `updateGracePeriod(data)` | PUT | `/v1/settings/grace-period` |
+| `getSettings()` | GET | `/settings` |
+| `updateGracePeriod(data)` | PUT | `/settings/grace-period` |
 
 #### Salary Levels
 | Method | HTTP | Endpoint |
 |---|---|---|
-| `getSalaryLevels()` | GET | `/v1/salary-levels` |
-| `createSalaryLevel(data)` | POST | `/v1/salary-levels` |
+| `getSalaryLevels()` | GET | `/salary-levels` |
+| `createSalaryLevel(data)` | POST | `/salary-levels` |
 
 ### 6.4 `attendance.service.ts` — `AttendanceService`
 
 | Method | HTTP | Endpoint | Mô tả |
 |---|---|---|---|
-| `createSchedule(data)` | POST | `/v1/attendance/schedule/create` | Tạo lịch làm việc |
-| `getAllSchedules()` | GET | `/v1/attendance/schedule/all` | Lấy toàn bộ lịch |
-| `checkIn(data)` | POST | `/v1/shifts/{shiftId}/check-in` | Check-in (GPS + ảnh) |
-| `checkOut(data)` | POST | `/v1/shifts/{shiftId}/check-out` | Check-out (GPS + ảnh) |
-| `approveExplanation(id, reviewNote)` | PUT | `/v1/attendance/explanations/{id}/approve` | Duyệt giải trình |
-| `rejectExplanation(id, reviewNote)` | PUT | `/v1/attendance/explanations/{id}/reject` | Từ chối giải trình |
-| `adminUpdate(recordId, data)` | PUT | `/v1/attendance/{recordId}/admin-update` | Admin sửa bản ghi |
+| `createSchedule(data)` | POST | `/attendance/schedule/create` | Tạo lịch làm việc |
+| `getAllSchedules()` | GET | `/attendance/schedule/all` | Lấy toàn bộ lịch |
+| `checkIn(data)` | POST | `/shifts/{shiftId}/check-in` | Check-in (GPS + ảnh) |
+| `checkOut(data)` | POST | `/shifts/{shiftId}/check-out` | Check-out (GPS + ảnh) |
+| `approveExplanation(id, reviewNote)` | PUT | `/attendance/explanations/{id}/approve` | Duyệt giải trình |
+| `rejectExplanation(id, reviewNote)` | PUT | `/attendance/explanations/{id}/reject` | Từ chối giải trình |
+| `adminUpdate(recordId, data)` | PUT | `/attendance/{recordId}/admin-update` | Admin sửa bản ghi |
 
 ### 6.5 `file.service.ts` — `FileService`
 
@@ -370,42 +370,42 @@ Tất cả service files nằm trong `app/services/`, dùng `apiNext` cho client
 
 | Method | HTTP | Endpoint | Mô tả |
 |---|---|---|---|
-| `getList(params)` | GET | `/v1/customers` | Danh sách (phân trang, lọc) |
-| `getById(id)` | GET | `/v1/customers/{id}` | Chi tiết khách hàng |
-| `create(data)` | POST | `/v1/customers` | Tạo khách hàng |
-| `update(id, data)` | PUT | `/v1/customers/{id}` | Cập nhật |
-| `deactivate(id)` | DELETE | `/v1/customers/{id}` | Vô hiệu hóa (soft delete) |
-| `updateGps(id, lat, lng)` | PUT | `/v1/customers/{id}/gps` | Cập nhật toạ độ GPS |
-| `reGeocode(id)` | POST | `/v1/customers/{id}/geocode` | Reverse geocode địa chỉ |
-| `getActiveWithGps()` | GET | `/v1/customers/active-with-gps` | KH active có GPS |
-| `importExcel(file)` | POST | `/v1/customers/import` | Import từ Excel |
-| `downloadTemplate()` | GET | `/v1/customers/import/template` | Tải template XLSX |
+| `getList(params)` | GET | `/customers` | Danh sách (phân trang, lọc) |
+| `getById(id)` | GET | `/customers/{id}` | Chi tiết khách hàng |
+| `create(data)` | POST | `/customers` | Tạo khách hàng |
+| `update(id, data)` | PUT | `/customers/{id}` | Cập nhật |
+| `deactivate(id)` | DELETE | `/customers/{id}` | Vô hiệu hóa (soft delete) |
+| `updateGps(id, lat, lng)` | PUT | `/customers/{id}/gps` | Cập nhật toạ độ GPS |
+| `reGeocode(id)` | POST | `/customers/{id}/geocode` | Reverse geocode địa chỉ |
+| `getActiveWithGps()` | GET | `/customers/active-with-gps` | KH active có GPS |
+| `importExcel(file)` | POST | `/customers/import` | Import từ Excel |
+| `downloadTemplate()` | GET | `/customers/import/template` | Tải template XLSX |
 
 ### 6.7 `scheduling.service.ts` — `SchedulingService`
 
 | Method | HTTP | Endpoint | Mô tả |
 |---|---|---|---|
-| `getShifts(params)` | GET | `/v1/shifts` | Danh sách ca (lọc tuần/tháng/NV) |
-| `checkConflict(params)` | GET | `/v1/shifts/conflict-check` | Kiểm tra xung đột ca |
-| `getAvailableEmployees(params)` | GET | `/v1/shifts/available-employees` | NV rảnh trong khoảng giờ |
-| `getShiftTemplates()` | GET | `/v1/shift-templates` | Danh sách mẫu ca |
-| `createShift(data)` | POST | `/v1/shifts` | Tạo ca |
-| `assignShift(data)` | POST | `/v1/shifts/assign` | Phân ca (kéo-thả) |
-| `createRecurringShift(data)` | POST | `/v1/shifts/recurring` | Tạo ca lặp lịch |
-| `assignEmployeeToExistingShift(shiftId, employeeId)` | PUT | `/v1/shifts/{shiftId}/assign` | Gán NV vào ca có sẵn |
-| `copyWeek(data)` | POST | `/v1/shifts/copy-week` | Sao chép lịch tuần |
-| `cancelShift(id)` | DELETE | `/v1/shifts/{id}` | Hủy ca |
-| `getOpenShifts()` | GET | `/v1/shifts/open` | Ca mở (tự đăng ký) |
-| `claimShift(shiftId)` | POST | `/v1/shifts/{shiftId}/claim` | NV tự nhận ca |
-| `confirmShift(shiftId)` | POST | `/v1/shifts/{shiftId}/confirm` | Xác nhận ca |
+| `getShifts(params)` | GET | `/shifts` | Danh sách ca (lọc tuần/tháng/NV) |
+| `checkConflict(params)` | GET | `/shifts/conflict-check` | Kiểm tra xung đột ca |
+| `getAvailableEmployees(params)` | GET | `/shifts/available-employees` | NV rảnh trong khoảng giờ |
+| `getShiftTemplates()` | GET | `/shift-templates` | Danh sách mẫu ca |
+| `createShift(data)` | POST | `/shifts` | Tạo ca |
+| `assignShift(data)` | POST | `/shifts/assign` | Phân ca (kéo-thả) |
+| `createRecurringShift(data)` | POST | `/shifts/recurring` | Tạo ca lặp lịch |
+| `assignEmployeeToExistingShift(shiftId, employeeId)` | PUT | `/shifts/{shiftId}/assign` | Gán NV vào ca có sẵn |
+| `copyWeek(data)` | POST | `/shifts/copy-week` | Sao chép lịch tuần |
+| `cancelShift(id)` | DELETE | `/shifts/{id}` | Hủy ca |
+| `getOpenShifts()` | GET | `/shifts/open` | Ca mở (tự đăng ký) |
+| `claimShift(shiftId)` | POST | `/shifts/{shiftId}/claim` | NV tự nhận ca |
+| `confirmShift(shiftId)` | POST | `/shifts/{shiftId}/confirm` | Xác nhận ca |
 
 ---
 
 ## 7. NEXT.JS API ROUTES (PROXY)
 
-Tất cả nằm trong `app/api/v1/auth/`:
+Tất cả nằm trong `app/api/auth/`:
 
-### `POST /api/v1/auth/login` — `login/route.ts`
+### `POST /api/auth/login` — `login/route.ts`
 **Input**: `{ phoneNumber, password, captchaToken }`
 **Logic**:
 1. Gọi `AuthService.loginJava()` → Spring Boot
@@ -418,7 +418,7 @@ Tất cả nằm trong `app/api/v1/auth/`:
 
 ---
 
-### `POST /api/v1/auth/logout` — `logout/route.ts`
+### `POST /api/auth/logout` — `logout/route.ts`
 **Logic**:
 1. Xóa cookies `accessToken`, `refreshToken`
 2. Gọi `AuthService.logout()` với token (best-effort)
@@ -426,7 +426,7 @@ Tất cả nằm trong `app/api/v1/auth/`:
 
 ---
 
-### `GET /api/v1/auth/me` — `me/route.ts`
+### `GET /api/auth/me` — `me/route.ts`
 **Logic**:
 1. Đọc `accessToken` từ cookie
 2. Nếu không có → 401
@@ -435,12 +435,12 @@ Tất cả nằm trong `app/api/v1/auth/`:
 
 ---
 
-### `GET /api/v1/auth/me-token` — `me-token/route.ts`
+### `GET /api/auth/me-token` — `me-token/route.ts`
 **Logic**: Đọc `AuthResponse` từ cookies, trả về client
 
 ---
 
-### `POST /api/v1/auth/refresh` — `refresh/route.ts`
+### `POST /api/auth/refresh` — `refresh/route.ts`
 **Logic**:
 1. Đọc `refreshToken` từ cookie
 2. Nếu không có → 401
@@ -450,7 +450,7 @@ Tất cả nằm trong `app/api/v1/auth/`:
 
 ---
 
-### `POST /api/v1/auth/clear-force-password` — `clear-force-password/route.ts`
+### `POST /api/auth/clear-force-password` — `clear-force-password/route.ts`
 **Logic**: Xóa cookie `forcePasswordChange`
 
 ---
@@ -1335,8 +1335,8 @@ cn(...inputs: ClassValue[]): string
 
 | Biến | Ví dụ | Mục đích |
 |---|---|---|
-| `NEXT_PUBLIC_API_BASE_URL` | `http://localhost:8080/api` | URL Spring Boot (apiJava) |
-| `NEXT_PUBLIC_API_URL` | `http://localhost:8080/api` | Fallback URL Spring Boot |
+| `NEXT_PUBLIC_API_BASE_URL` | `http://localhost:8081/api` | URL Spring Boot (apiJava) |
+| `NEXT_PUBLIC_API_URL` | `http://localhost:8081/api` | Fallback URL Spring Boot |
 | `NEXT_PUBLIC_APP_URL` | `http://localhost:3000/api` | URL Next.js proxy |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | `1x000...AA` | Cloudflare Turnstile CAPTCHA (test key) |
 | `STITCH_API_KEY` | `AQ.Ab8RN...` | Stitch service API key |
@@ -1445,95 +1445,95 @@ cn(...inputs: ClassValue[]): string
 
 ## 16. DANH SÁCH API TÍCH HỢP VỚI BACKEND
 
-### Authentication (`/v1/auth/`)
+### Authentication (`/auth/`)
 | Method | Endpoint | Mô tả |
 |---|---|---|
-| POST | `/v1/auth/login` | Đăng nhập |
-| POST | `/v1/auth/token/refresh` | Refresh token |
-| POST | `/v1/auth/logout` | Đăng xuất |
-| GET | `/v1/auth/me` | Lấy thông tin người dùng hiện tại |
-| GET | `/v1/auth/profile` | Lấy profile đầy đủ |
-| PUT | `/v1/auth/profile` | Cập nhật profile |
-| POST | `/v1/auth/password/forgot` | Quên mật khẩu |
-| POST | `/v1/auth/password/verify-otp` | Xác thực OTP |
-| PUT | `/v1/auth/password/reset` | Reset mật khẩu |
-| PUT | `/v1/auth/password/change` | Đổi mật khẩu |
-| PUT | `/v1/auth/password/first-change` | Đổi mật khẩu lần đầu |
+| POST | `/auth/login` | Đăng nhập |
+| POST | `/auth/token/refresh` | Refresh token |
+| POST | `/auth/logout` | Đăng xuất |
+| GET | `/auth/me` | Lấy thông tin người dùng hiện tại |
+| GET | `/auth/profile` | Lấy profile đầy đủ |
+| PUT | `/auth/profile` | Cập nhật profile |
+| POST | `/auth/password/forgot` | Quên mật khẩu |
+| POST | `/auth/password/verify-otp` | Xác thực OTP |
+| PUT | `/auth/password/reset` | Reset mật khẩu |
+| PUT | `/auth/password/change` | Đổi mật khẩu |
+| PUT | `/auth/password/first-change` | Đổi mật khẩu lần đầu |
 
-### Employees (`/v1/employees/`)
+### Employees (`/employees/`)
 | Method | Endpoint | Mô tả |
 |---|---|---|
-| GET | `/v1/employees` | Danh sách nhân viên (paginated) |
-| GET | `/v1/employees/statistics` | Thống kê nhân sự |
-| GET | `/v1/employees/me` | Profile nhân viên hiện tại |
-| POST | `/v1/employees` | Tạo nhân viên |
-| PUT | `/v1/employees/{id}` | Cập nhật nhân viên |
-| DELETE | `/v1/employees/{id}` | Xóa nhân viên |
-| PATCH | `/v1/employees/{id}/status` | Cập nhật trạng thái |
-| PATCH | `/v1/employees/{id}/salary-level` | Gán bậc lương |
+| GET | `/employees` | Danh sách nhân viên (paginated) |
+| GET | `/employees/statistics` | Thống kê nhân sự |
+| GET | `/employees/me` | Profile nhân viên hiện tại |
+| POST | `/employees` | Tạo nhân viên |
+| PUT | `/employees/{id}` | Cập nhật nhân viên |
+| DELETE | `/employees/{id}` | Xóa nhân viên |
+| PATCH | `/employees/{id}/status` | Cập nhật trạng thái |
+| PATCH | `/employees/{id}/salary-level` | Gán bậc lương |
 
-### Shifts (`/v1/shifts/`)
+### Shifts (`/shifts/`)
 | Method | Endpoint | Mô tả |
 |---|---|---|
-| GET | `/v1/shifts` | Danh sách ca (lọc tuần/tháng/NV) |
-| GET | `/v1/shifts/conflict-check` | Kiểm tra xung đột ca |
-| GET | `/v1/shifts/available-employees` | NV rảnh |
-| GET | `/v1/shifts/open` | Ca mở (tự nhận) |
-| POST | `/v1/shifts` | Tạo ca |
-| POST | `/v1/shifts/assign` | Phân ca (drag-drop) |
-| POST | `/v1/shifts/recurring` | Tạo ca lặp |
-| POST | `/v1/shifts/copy-week` | Sao chép tuần |
-| POST | `/v1/shifts/{id}/check-in` | Check-in |
-| POST | `/v1/shifts/{id}/check-out` | Check-out |
-| POST | `/v1/shifts/{id}/claim` | Tự nhận ca |
-| POST | `/v1/shifts/{id}/confirm` | Xác nhận ca |
-| PUT | `/v1/shifts/{id}/assign` | Gán NV vào ca |
-| DELETE | `/v1/shifts/{id}` | Hủy ca |
+| GET | `/shifts` | Danh sách ca (lọc tuần/tháng/NV) |
+| GET | `/shifts/conflict-check` | Kiểm tra xung đột ca |
+| GET | `/shifts/available-employees` | NV rảnh |
+| GET | `/shifts/open` | Ca mở (tự nhận) |
+| POST | `/shifts` | Tạo ca |
+| POST | `/shifts/assign` | Phân ca (drag-drop) |
+| POST | `/shifts/recurring` | Tạo ca lặp |
+| POST | `/shifts/copy-week` | Sao chép tuần |
+| POST | `/shifts/{id}/check-in` | Check-in |
+| POST | `/shifts/{id}/check-out` | Check-out |
+| POST | `/shifts/{id}/claim` | Tự nhận ca |
+| POST | `/shifts/{id}/confirm` | Xác nhận ca |
+| PUT | `/shifts/{id}/assign` | Gán NV vào ca |
+| DELETE | `/shifts/{id}` | Hủy ca |
 
-### Customers (`/v1/customers/`)
+### Customers (`/customers/`)
 | Method | Endpoint | Mô tả |
 |---|---|---|
-| GET | `/v1/customers` | Danh sách KH (paginated) |
-| GET | `/v1/customers/{id}` | Chi tiết KH |
-| GET | `/v1/customers/active-with-gps` | KH active có GPS |
-| GET | `/v1/customers/import/template` | Template Excel |
-| POST | `/v1/customers` | Tạo KH |
-| POST | `/v1/customers/import` | Import Excel |
-| POST | `/v1/customers/{id}/geocode` | Reverse geocode |
-| PUT | `/v1/customers/{id}` | Cập nhật KH |
-| PUT | `/v1/customers/{id}/gps` | Cập nhật GPS |
-| DELETE | `/v1/customers/{id}` | Vô hiệu hóa KH |
+| GET | `/customers` | Danh sách KH (paginated) |
+| GET | `/customers/{id}` | Chi tiết KH |
+| GET | `/customers/active-with-gps` | KH active có GPS |
+| GET | `/customers/import/template` | Template Excel |
+| POST | `/customers` | Tạo KH |
+| POST | `/customers/import` | Import Excel |
+| POST | `/customers/{id}/geocode` | Reverse geocode |
+| PUT | `/customers/{id}` | Cập nhật KH |
+| PUT | `/customers/{id}/gps` | Cập nhật GPS |
+| DELETE | `/customers/{id}` | Vô hiệu hóa KH |
 
-### Attendance (`/v1/attendance/`)
+### Attendance (`/attendance/`)
 | Method | Endpoint | Mô tả |
 |---|---|---|
-| POST | `/v1/attendance/schedule/create` | Tạo lịch |
-| GET | `/v1/attendance/schedule/all` | Tất cả lịch |
-| GET | `/v1/attendance/records` | Bản ghi chấm công |
-| POST | `/v1/attendance/approve` | Duyệt giải trình |
-| PUT | `/v1/attendance/explanations/{id}/approve` | Duyệt giải trình (v2) |
-| PUT | `/v1/attendance/explanations/{id}/reject` | Từ chối giải trình |
-| PUT | `/v1/attendance/{id}/admin-update` | Admin sửa bản ghi |
+| POST | `/attendance/schedule/create` | Tạo lịch |
+| GET | `/attendance/schedule/all` | Tất cả lịch |
+| GET | `/attendance/records` | Bản ghi chấm công |
+| POST | `/attendance/approve` | Duyệt giải trình |
+| PUT | `/attendance/explanations/{id}/approve` | Duyệt giải trình (v2) |
+| PUT | `/attendance/explanations/{id}/reject` | Từ chối giải trình |
+| PUT | `/attendance/{id}/admin-update` | Admin sửa bản ghi |
 
-### Shift Templates (`/v1/shift-templates/`)
+### Shift Templates (`/shift-templates/`)
 | Method | Endpoint |
 |---|---|
-| GET | `/v1/shift-templates` |
-| POST | `/v1/shift-templates` |
-| PUT | `/v1/shift-templates/{id}` |
-| DELETE | `/v1/shift-templates/{id}` |
+| GET | `/shift-templates` |
+| POST | `/shift-templates` |
+| PUT | `/shift-templates/{id}` |
+| DELETE | `/shift-templates/{id}` |
 
-### Salary Levels (`/v1/salary-levels/`)
+### Salary Levels (`/salary-levels/`)
 | Method | Endpoint |
 |---|---|
-| GET | `/v1/salary-levels` |
-| POST | `/v1/salary-levels` |
+| GET | `/salary-levels` |
+| POST | `/salary-levels` |
 
-### Settings (`/v1/settings/`)
+### Settings (`/settings/`)
 | Method | Endpoint |
 |---|---|
-| GET | `/v1/settings` |
-| PUT | `/v1/settings/grace-period` |
+| GET | `/settings` |
+| PUT | `/settings/grace-period` |
 
 ### Files
 | Method | Endpoint | Mô tả |
@@ -1677,3 +1677,5 @@ PointTrack_FE/
 ---
 
 *Đặc tả này phản ánh trạng thái codebase tại thời điểm 2026-03-30, nhánh `main`.*
+
+
