@@ -56,7 +56,7 @@ const MapContent = ({
         const bounds = new google.maps.LatLngBounds()
         bounds.extend({ lat: customerLat, lng: customerLng })
         bounds.extend({ lat: employeeLat, lng: employeeLng })
-        map.fitBounds(bounds, { padding: 60 })
+        map.fitBounds(bounds, { top: 60, right: 60, bottom: 60, left: 60 })
       }
     }
   }, [customerLat, customerLng, employeeLat, employeeLng, map, onDistanceChange])

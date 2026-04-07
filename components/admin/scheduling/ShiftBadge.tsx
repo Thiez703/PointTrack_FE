@@ -4,7 +4,7 @@ import React from 'react'
 import { ShiftSchema, ShiftStatus, ShiftType } from '@/app/types/attendance.schema'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-import { Play, CheckCircle2, XCircle } from 'lucide-react'
+import { Play, CheckCircle2, XCircle, Clock } from 'lucide-react'
 
 import { format } from 'date-fns'
 

@@ -40,10 +40,8 @@ export default function FirstChangePasswordPage() {
 
   const mutation = useMutation({
     mutationFn: (data: FormValues) => AuthService.firstChangePassword(data),
-    onSuccess: async (data) => {
+    onSuccess: (data) => {
       setAuth(data);
-      // Clear the server-side forcePasswordChange cookie
-      await fetch("/api/auth/clear-force-password", { method: "POST" });
       toast.success("Đổi mật khẩu thành công! Chào mừng bạn.");
       router.push(data.role === "ADMIN" ? "/admin" : "/");
     },

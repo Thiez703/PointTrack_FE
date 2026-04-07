@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
     Gift, Calendar, Clock, MapPin, Building2,
-    Star, ChevronLeft, TrendingUp
+    Star, ChevronLeft, TrendingUp, CheckCircle2
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';

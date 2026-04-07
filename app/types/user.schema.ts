@@ -1,3 +1,45 @@
+export interface UserType {
+  id: number
+  fullName: string
+  email: string
+  phoneNumber: string
+  role: 'USER' | 'ADMIN'
+  avatarUrl?: string | null
+}
+
+export interface SignupFormValues {
+  fullName: string
+  email?: string
+  phoneNumber: string
+  password: string
+}
+
+export interface ProfileFormValues {
+  fullName?: string
+  email?: string
+  phoneNumber?: string
+  avatarUrl?: string | null
+}
+
+export interface AvatarImage {
+  imageUrl: string
+}
+
+export interface ChangePasswordFormValues {
+  currentPassword: string
+  newPassword: string
+  confirmPassword: string
+}
+
+export interface AddressFormValues {
+  id?: number
+  label?: string
+  addressLine: string
+  latitude?: number
+  longitude?: number
+  isDefault?: boolean
+}
+
 export interface EmployeeProfileResponse {
   success: boolean;
   message: string;

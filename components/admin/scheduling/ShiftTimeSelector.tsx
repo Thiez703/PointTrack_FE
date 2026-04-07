@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 interface ShiftTimeSelectorProps {
   startTime: string
   endTime: string
+  disabled?: boolean
   onChange: (start: string, end: string) => void
 }
 
@@ -22,6 +23,7 @@ const PRESETS = [
 export const ShiftTimeSelector: React.FC<ShiftTimeSelectorProps> = ({ 
   startTime, 
   endTime, 
+  disabled = false,
   onChange 
 }) => {
   const { durationMinutes, isOvernight, totalHours, remainingMinutes } = useMemo(() => {
@@ -71,9 +73,10 @@ export const ShiftTimeSelector: React.FC<ShiftTimeSelectorProps> = ({
           <button
             key={preset.label}
             type="button"
+            disabled={disabled}
             onClick={() => onChange(preset.start, preset.end)}
             className={cn(
-              "px-4 py-2 rounded-full text-xs font-black uppercase tracking-wider transition-all border-2",
+              "px-4 py-2 rounded-full text-xs font-black uppercase tracking-wider transition-all border-2 disabled:opacity-50 disabled:cursor-not-allowed",
               startTime === preset.start && endTime === preset.end
                 ? "bg-orange-500 border-orange-500 text-white shadow-md scale-105"
                 : "bg-white border-orange-100 text-orange-500 hover:bg-orange-50 hover:border-orange-200"
@@ -89,6 +92,7 @@ export const ShiftTimeSelector: React.FC<ShiftTimeSelectorProps> = ({
         <ShiftTimePicker
           label="Giờ bắt đầu"
           value={startTime}
+          disabled={disabled}
           onChange={(val) => onChange(val, endTime)}
         />
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 translate-y-1 w-8 h-8 rounded-full bg-orange-50 flex items-center justify-center border-2 border-orange-100 z-10 hidden sm:flex">
@@ -97,6 +101,7 @@ export const ShiftTimeSelector: React.FC<ShiftTimeSelectorProps> = ({
         <ShiftTimePicker
           label="Giờ kết thúc"
           value={endTime}
+          disabled={disabled}
           onChange={(val) => onChange(startTime, val)}
         />
       </div>

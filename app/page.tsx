@@ -200,7 +200,7 @@ export default function Home() {
                                 className="w-20 h-20 sm:w-28 sm:h-28 rounded-[32px] sm:rounded-[40px] bg-white/20 p-1.5 flex items-center justify-center backdrop-blur-xl border border-white/30 shadow-2xl overflow-hidden group"
                             >
                                 <div className="w-full h-full rounded-[24px] sm:rounded-[32px] bg-gradient-to-br from-orange-50 to-white flex items-center justify-center text-3xl sm:text-4xl font-black text-orange-600 transition-transform group-hover:scale-110">
-                                    {(user.fullName || 'P').charAt(0)}
+                                    {(user?.fullName || 'P').charAt(0)}
                                 </div>
                             </motion.button>
                             <div>
@@ -211,12 +211,12 @@ export default function Home() {
                                 >
                                     Chào buổi sáng ✨
                                 </motion.p>
-                                <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tighter leading-none mb-3">{user.fullName || 'Người dùng'}</h1>
+                                <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tighter leading-none mb-3">{user?.fullName || 'Người dùng'}</h1>
                                 <div className="flex flex-wrap items-center gap-3">
-                                    <span className="px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-[10px] sm:text-xs font-black text-white border border-white/10 uppercase tracking-widest">{user.role}</span>
+                                    <span className="px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-[10px] sm:text-xs font-black text-white border border-white/10 uppercase tracking-widest">{user?.role || 'USER'}</span>
                                     <div className="flex items-center gap-2 text-orange-100 text-xs sm:text-sm font-bold opacity-90">
                                         <Smartphone size={14} className="opacity-70" />
-                                        {user.phoneNumber}
+                                        {user?.phoneNumber || '--'}
                                     </div>
                                 </div>
                             </div>

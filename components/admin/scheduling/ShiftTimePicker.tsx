@@ -8,12 +8,13 @@ interface ShiftTimePickerProps {
   value: string // "HH:MM"
   onChange: (time: string) => void
   label: string
+  disabled?: boolean
 }
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'))
 const MINUTES = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0'))
 
-export const ShiftTimePicker: React.FC<ShiftTimePickerProps> = ({ value, onChange, label }) => {
+export const ShiftTimePicker: React.FC<ShiftTimePickerProps> = ({ value, onChange, label, disabled = false }) => {
   const [isOpen, setIsOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -31,6 +32,7 @@ export const ShiftTimePicker: React.FC<ShiftTimePickerProps> = ({ value, onChang
   }, [])
 
   const updateTime = (newHour: string, newMinute: string) => {
+    if (disabled) return
     onChange(`${newHour}:${newMinute}`)
   }
 
@@ -55,6 +57,7 @@ export const ShiftTimePicker: React.FC<ShiftTimePickerProps> = ({ value, onChang
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (disabled) return
     let val = e.target.value.replace(/[^0-9:]/g, '')
     if (val.length === 2 && !val.includes(':')) {
       val += ':'
@@ -64,6 +67,7 @@ export const ShiftTimePicker: React.FC<ShiftTimePickerProps> = ({ value, onChang
   }
 
   const handleBlur = () => {
+    if (disabled) return
     let [h, m] = value.split(':')
     if (!h) h = '00'
     if (!m) m = '00'
@@ -75,7 +79,8 @@ export const ShiftTimePicker: React.FC<ShiftTimePickerProps> = ({ value, onChang
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
       e.preventDefault()
-      const isHour = inputRef.current?.selectionStart !== undefined && inputRef.current.selectionStart <= 2
+      const selectionStart = inputRef.current?.selectionStart ?? 0
+      const isHour = selectionStart <= 2
       if (isHour) {
         handleHourScroll(e.key === 'ArrowUp' ? 'up' : 'down')
       } else {
@@ -140,19 +145,21 @@ export const ShiftTimePicker: React.FC<ShiftTimePickerProps> = ({ value, onChang
       <div 
         className={cn(
           "flex items-center bg-white border-2 rounded-2xl px-4 py-3 transition-all duration-200 group",
-          isOpen ? "border-teal-500 ring-4 ring-teal-50/50 shadow-sm" : "border-gray-100 hover:border-orange-200"
+          isOpen ? "border-teal-500 ring-4 ring-teal-50/50 shadow-sm" : "border-gray-100 hover:border-orange-200",
+          disabled && "bg-gray-50 cursor-not-allowed"
         )}
       >
         <input
           ref={inputRef}
           type="text"
+          disabled={disabled}
           value={value}
           onChange={handleInputChange}
-          onFocus={() => setIsOpen(true)}
+          onFocus={() => !disabled && setIsOpen(true)}
           onBlur={handleBlur}
           onKeyDown={handleKeyDown}
           placeholder="HH:MM"
-          className="w-full bg-transparent outline-none font-black text-gray-700 text-lg tracking-tight"
+          className="w-full bg-transparent outline-none font-black text-gray-700 text-lg tracking-tight disabled:text-gray-400"
         />
         <div className="flex flex-col text-[10px] font-black text-gray-300 uppercase leading-none">
           <span>{parseInt(hour) >= 12 ? 'PM' : 'AM'}</span>
@@ -160,7 +167,7 @@ export const ShiftTimePicker: React.FC<ShiftTimePickerProps> = ({ value, onChang
         </div>
       </div>
 
-      {isOpen && (
+      {isOpen && !disabled && (
         <div 
           className="absolute top-full left-0 mt-2 bg-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-gray-100 p-4 z-[100] animate-in fade-in zoom-in-95 duration-200 flex gap-4 min-w-[160px] justify-center items-center"
           role="listbox"

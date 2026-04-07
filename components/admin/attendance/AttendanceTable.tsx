@@ -26,9 +26,9 @@ interface AttendanceTableProps {
 
 const MethodIcon = ({ method }: { method: string | null }) => {
   switch (method) {
-    case 'gps': return <MapPin className="w-3 h-3 text-blue-500" title="GPS" />
-    case 'qr': return <QrCode className="w-3 h-3 text-green-500" title="QR Code" />
-    case 'manual': return <Keyboard className="w-3 h-3 text-gray-500" title="Thủ công" />
+    case 'gps': return <MapPin className="w-3 h-3 text-blue-500" />
+    case 'qr': return <QrCode className="w-3 h-3 text-green-500" />
+    case 'manual': return <Keyboard className="w-3 h-3 text-gray-500" />
     default: return null
   }
 }

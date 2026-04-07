@@ -1,13 +1,11 @@
 import React from 'react'
-import { AttendanceRecord, AttendanceStatus } from '@/app/types/attendance'
+import { format } from 'date-fns'
+import { vi } from 'date-fns/locale'
+import { AttendanceRecord } from '@/app/types/attendance'
 import { AttendanceService } from '@/app/services/attendance.service'
 import { SchedulingService } from '@/app/services/scheduling.service'
-// ... (other imports)
 import { 
-  Clock, 
   MapPin, 
-  User, 
-  Briefcase, 
   CalendarDays, 
   ArrowRightCircle, 
   CheckCircle2,
@@ -16,7 +14,12 @@ import {
   AlertTriangle,
   Loader2
 } from 'lucide-react'
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 
 interface DetailDrawerProps {
@@ -29,7 +32,15 @@ interface DetailDrawerProps {
 }
 
 const DetailItem = ({ icon: Icon, label, value, colorClass }: any) => (
-// ...
+  <div className="flex items-start gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+    <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${colorClass}`}>
+      <Icon className="h-5 w-5" />
+    </div>
+    <div className="min-w-0 flex-1">
+      <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500">{label}</p>
+      <p className="mt-1 truncate text-sm font-semibold text-gray-800">{value || 'N/A'}</p>
+    </div>
+  </div>
 )
 
 const AttendanceDetailDrawer: React.FC<DetailDrawerProps> = ({ record, open, onClose, onUpdateNote, isUpdating, onRefresh }) => {
@@ -91,7 +102,6 @@ const AttendanceDetailDrawer: React.FC<DetailDrawerProps> = ({ record, open, onC
   }
 
   return (
-// ...
     <Sheet open={open} onOpenChange={onClose}>
       <SheetContent className="w-full sm:max-w-[480px] p-0 border-l overflow-y-auto">
         <div className="bg-gradient-to-br from-orange-500 to-pink-500 p-8 text-white relative">

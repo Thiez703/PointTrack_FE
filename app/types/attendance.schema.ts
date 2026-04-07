@@ -141,6 +141,21 @@ export interface ShiftConflictResponse {
   minutesShort: number | null
 }
 
+export interface CopyWeekRequest {
+  sourceWeek: string
+  targetWeek: string
+}
+
+export interface CopyWeekConflictItem {
+  detail: string
+}
+
+export interface CopyWeekResponse {
+  copied: number
+  skipped: number
+  conflicts: CopyWeekConflictItem[]
+}
+
 export interface AvailableEmployee {
   employeeId: number
   employeeName: string

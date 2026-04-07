@@ -27,6 +27,7 @@ import { cn } from '@/lib/utils'
 import { format, addDays, parseISO } from 'date-fns'
 import { vi } from 'date-fns/locale'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
@@ -44,7 +45,7 @@ const TODAY_STR = format(TODAY, 'yyyy-MM-dd')
 export default function CreateShiftSwapPage() {
   const router = useRouter()
   const { userInfo } = useAuthStore()
-  const userId = userInfo?.userId || userInfo?.id
+  const userId = userInfo?.userId
   const [currentStep, setCurrentStep] = useState(1)
   
   // Form State
@@ -397,7 +398,7 @@ export default function CreateShiftSwapPage() {
         <div className="flex flex-col gap-4 relative">
           <div className="bg-gray-50 p-4 rounded-2xl">
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Ca của bạn</p>
-            <p className="font-bold text-gray-800">{myShift?.name}</p>
+            <p className="font-bold text-gray-800">{myShift?.customerName || 'Ca làm đã chọn'}</p>
             <p className="text-xs text-gray-500">{myShift?.startTime.slice(0, 5)} | {format(parseISO(myShift?.shiftDate || TODAY_STR), 'dd/MM')}</p>
           </div>
 
@@ -410,7 +411,7 @@ export default function CreateShiftSwapPage() {
               {type === 'TRANSFER' ? 'Nhường cho' : 'Đổi sang'}
             </p>
             <p className="font-bold text-orange-900">
-              {targetShift?.name || targetEmployee?.name || 'Admin sắp xếp'}
+              {targetShift?.customerName || targetShift?.name || targetEmployee?.name || 'Admin sắp xếp'}
             </p>
             {targetShift && (
               <p className="text-xs text-orange-600/70">{targetShift.startTime.slice(0, 5)} | {format(parseISO(targetShift.shiftDate || targetDate), 'dd/MM')}</p>

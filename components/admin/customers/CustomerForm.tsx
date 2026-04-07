@@ -105,15 +105,12 @@ export function CustomerForm({ customer, onSuccess, onCancel }: CustomerFormProp
 
       if (data.status === 'OK' && data.results.length > 0) {
         const { lat, lng } = data.results[0].geometry.location
-        const formattedAddress = data.results[0].formatted_address
-        
-        setGeocodeResult({ lat, lng, formattedAddress })
+
         form.setValue('latitude', lat)
         form.setValue('longitude', lng)
         toast.success('Đã xác định được tọa độ vị trí!')
       } else {
         toast.error('Không tìm thấy vị trí này trên bản đồ. Vui lòng kiểm tra lại địa chỉ.')
-        setGeocodeResult(null)
       }
     } catch (error) {
       toast.error('Lỗi kết nối với Google Maps API')
@@ -126,6 +123,8 @@ export function CustomerForm({ customer, onSuccess, onCancel }: CustomerFormProp
     const payload = {
       ...values,
       secondaryPhone: values.secondaryPhone || undefined,
+      latitude: values.latitude ?? null,
+      longitude: values.longitude ?? null,
     }
     if (isEditMode) {
       updateCustomer(payload, { onSuccess })

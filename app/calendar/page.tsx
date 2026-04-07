@@ -43,7 +43,16 @@ const TODAY_STR = format(TODAY, 'yyyy-MM-dd')
 
 const shiftIcons = { Sáng: Sun, Chiều: Sunset, Đêm: Moon } as const
 
-const statusThemes = {
+type StatusTheme = {
+  bg: string
+  border: string
+  text: string
+  accent: string
+  badge: string
+  label: string
+}
+
+const statusThemes: Partial<Record<ShiftStatus, StatusTheme>> & { default: StatusTheme } = {
   [ShiftStatus.ASSIGNED]: {
     bg: 'bg-green-50/50',
     border: 'border-green-100',
@@ -101,7 +110,12 @@ const statusThemes = {
     badge: 'bg-blue-100 text-blue-700',
     label: 'Ca làm'
   }
-} as const
+}
+
+const getStatusTheme = (status: ShiftStatus): StatusTheme => {
+  const themeMap: Partial<Record<ShiftStatus, StatusTheme>> = statusThemes
+  return themeMap[status] ?? statusThemes.default
+}
 
 const WEEKDAYS_SHORT = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
 
@@ -236,7 +250,7 @@ export default function CalendarPage() {
       effectiveStatus = ShiftStatus.IN_PROGRESS;
     }
 
-    const theme = (statusThemes[effectiveStatus] || statusThemes.default) as typeof statusThemes.default
+    const theme = getStatusTheme(effectiveStatus)
     const Icon = shiftIcons[period]
     const isCompletedShift = effectiveStatus === ShiftStatus.COMPLETED
     

@@ -126,14 +126,23 @@ export class AuthService {
   }
 
   /** Called when forcePasswordChange === true — returns new AuthResponse */
+  static async firstChangePasswordJava(data: {
+    newPassword: string
+    confirmPassword: string
+  }, token?: string): Promise<AuthResponse> {
+    const response = await apiJava.put<AuthResponse>(
+      API_ENDPOINTS.AUTH.FIRST_CHANGE_PASSWORD,
+      data,
+      token ? { headers: { Authorization: `Bearer ${token}` } } : {}
+    )
+    return response.data
+  }
+
   static async firstChangePassword(data: {
     newPassword: string
     confirmPassword: string
   }): Promise<AuthResponse> {
-    const response = await apiJava.put<AuthResponse>(
-      API_ENDPOINTS.AUTH.FIRST_CHANGE_PASSWORD,
-      data
-    )
+    const response = await apiNext.put<AuthResponse>('auth/first-change-password', data)
     return response.data
   }
 }
