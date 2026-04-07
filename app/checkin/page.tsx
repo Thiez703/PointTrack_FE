@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
@@ -14,7 +14,7 @@ import {
 import { toast } from "sonner";
 import { AttendanceService } from "@/app/services/attendance.service";
 import { SchedulingService } from "@/app/services/scheduling.service";
-import type { CheckInResponse, CheckOutResponse, ShiftSchema } from "@/app/types/attendance.schema";
+import { ShiftStatus, type CheckInResponse, type CheckOutResponse, type ShiftSchema } from "@/app/types/attendance.schema";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 import { useAuthStore } from "@/stores/useAuthStore";
@@ -31,7 +31,11 @@ import { cn } from "@/lib/utils";
 
 const LATE_TOLERANCE_MINUTES = 15; // Phút cho phép trễ
 const UPCOMING_WINDOW_MINUTES = 30; // Phút hiển thị sắp bắt đầu
-const ALLOWED_RADIUS_METERS = 200; // Bán kính cho phép mặc định (nếu BE không trả về)
+const ALLOWED_RADIUS_METERS = 50; // Đồng bộ GPS fencing với BE
+const MIN_CHECKOUT_WORK_RATIO = 0.5; // Chỉ cho checkout sau khi hoàn thành >= 50% thời lượng ca
+const TEMP_BYPASS_GPS_VALIDATION = true; // TEMP: Bỏ qua check vị trí để test nghiệp vụ lương
+const TEMP_BYPASS_MIN_CHECKOUT_RULE = true; // TEMP: Bỏ qua rule 50% để test nghiệp vụ lương
+const TEMP_BYPASS_LATE_CHECKOUT_REASON = true; // TEMP: Bỏ qua bước bắt lý do checkout muộn để test nghiệp vụ lương
 
 /**
  * Công thức Haversine tính khoảng cách giữa 2 điểm GPS (mét)
@@ -64,6 +68,97 @@ function getMinutesDiff(now: Date, targetTimeStr: string, baseDateStr: string): 
   // Tuy nhiên ShiftSchema có shiftDate cố định.
   
   return (now.getTime() - targetDate.getTime()) / 60000;
+}
+
+/**
+ * Tính thời lượng ca theo phút, xử lý cả ca qua đêm.
+ */
+function getShiftDurationMinutes(startTimeStr: string, endTimeStr: string): number {
+  const [sh, sm] = startTimeStr.split(":").map(Number);
+  const [eh, em] = endTimeStr.split(":").map(Number);
+
+  const startTotal = sh * 60 + sm;
+  const endTotal = eh * 60 + em;
+  let duration = endTotal - startTotal;
+
+  if (duration <= 0) {
+    duration += 24 * 60;
+  }
+
+  return Math.max(1, duration);
+}
+
+function parseShiftDateTime(shiftDate: string, timeStr: string): Date {
+  const [year, month, day] = shiftDate.split("-").map(Number);
+  const [hour, minute] = timeStr.split(":").map(Number);
+  return new Date(year, (month ?? 1) - 1, day ?? 1, hour ?? 0, minute ?? 0, 0, 0);
+}
+
+function getShiftTimeState(shift: ShiftSchema, now: Date) {
+  const startAt = parseShiftDateTime(shift.shiftDate, shift.startTime);
+  const endAt = parseShiftDateTime(shift.shiftDate, shift.endTime);
+
+  if (endAt.getTime() <= startAt.getTime()) {
+    endAt.setDate(endAt.getDate() + 1);
+  }
+
+  const isUpcoming = now.getTime() < startAt.getTime();
+  const isExpired = now.getTime() > endAt.getTime();
+
+  return {
+    startAt,
+    endAt,
+    isUpcoming,
+    isExpired,
+    isActive: !isUpcoming && !isExpired,
+  };
+}
+
+function formatRemainingDuration(totalSeconds: number): string {
+  const safeSeconds = Math.max(0, totalSeconds);
+  const mins = Math.floor(safeSeconds / 60);
+  const secs = safeSeconds % 60;
+  return `${mins}p ${String(secs).padStart(2, "0")}s`;
+}
+
+function getCheckoutRuleForShift(shift: ShiftSchema, now: Date) {
+  const durationMinutes = getShiftDurationMinutes(shift.startTime, shift.endTime);
+  const requiredMinutes = Math.max(1, Math.ceil(durationMinutes * MIN_CHECKOUT_WORK_RATIO));
+
+  if (TEMP_BYPASS_MIN_CHECKOUT_RULE) {
+    return {
+      requiredMinutes,
+      remainingSeconds: 0,
+      canCheckOut: true,
+    };
+  }
+
+  if (!shift.checkInTime) {
+    return {
+      requiredMinutes,
+      remainingSeconds: requiredMinutes * 60,
+      canCheckOut: false,
+    };
+  }
+
+  const checkInAt = new Date(shift.checkInTime);
+  if (Number.isNaN(checkInAt.getTime())) {
+    return {
+      requiredMinutes,
+      remainingSeconds: requiredMinutes * 60,
+      canCheckOut: false,
+    };
+  }
+
+  const elapsedSeconds = Math.max(0, Math.floor((now.getTime() - checkInAt.getTime()) / 1000));
+  const requiredSeconds = requiredMinutes * 60;
+  const remainingSeconds = Math.max(0, requiredSeconds - elapsedSeconds);
+
+  return {
+    requiredMinutes,
+    remainingSeconds,
+    canCheckOut: remainingSeconds === 0,
+  };
 }
 
 type ExtendedShiftStatus =
@@ -132,12 +227,16 @@ function ShiftCard({
   currentTime: Date;
 }) {
   const status = getShiftStatus(shift);
+  const timeState = getShiftTimeState(shift, currentTime);
+  const isUpcoming = timeState.isUpcoming;
   
   const isCheckInVisible = status === "SCHEDULED";
   const isCheckOutVisible = status === "IN_PROGRESS";
   const isCompleted = status === "COMPLETED";
   const isAbsent = status === "ABSENT";
   const isCancelled = status === "CANCELLED";
+  const checkoutRule = isCheckOutVisible ? getCheckoutRuleForShift(shift, currentTime) : null;
+  const isCheckoutLocked = !!checkoutRule && !checkoutRule.canCheckOut;
 
   // Countdown logic for CHECK_OUT window (optional helper)
   const getCountdownText = () => {
@@ -159,7 +258,9 @@ function ShiftCard({
     <div
       className={cn(
         "bg-white rounded-2xl p-4 border shadow-sm transition-all",
-        status === "IN_PROGRESS"
+        isUpcoming
+          ? "border-orange-100 bg-orange-50/60 opacity-70"
+          : status === "IN_PROGRESS"
           ? "border-green-200 shadow-green-50 bg-green-50/10"
           : isCompleted
           ? "border-blue-100"
@@ -173,7 +274,9 @@ function ShiftCard({
         <div
           className={cn(
             "w-12 h-12 rounded-xl flex flex-col items-center justify-center flex-shrink-0",
-            status === "IN_PROGRESS"
+            isUpcoming
+              ? "bg-orange-50 text-orange-500"
+              : status === "IN_PROGRESS"
               ? "bg-green-50 text-green-600"
               : isCompleted
               ? "bg-blue-50 text-blue-600"
@@ -214,19 +317,38 @@ function ShiftCard({
 
       {/* Action row */}
       <div className="mt-3 pt-3 border-t border-gray-50">
-        {isCompleted ? (
+        {isUpcoming ? (
+          <p className="text-center text-[11px] font-black text-orange-500 uppercase tracking-wider">
+            Chưa tới giờ làm - mở lúc {shift.startTime.slice(0, 5)}
+          </p>
+        ) : isCompleted ? (
           <p className="text-center text-sm font-black text-blue-600">✅ Đã hoàn thành ca</p>
         ) : isAbsent ? (
           <p className="text-center text-sm font-black text-red-500 uppercase tracking-widest">Vắng mặt</p>
         ) : isCancelled ? (
           <p className="text-center text-sm font-black text-gray-400 uppercase tracking-widest">Đã hủy</p>
         ) : isCheckOutVisible ? (
-          <Button
-            onClick={onCheckOut}
-            className="w-full h-11 rounded-xl bg-green-500 hover:bg-green-600 text-white font-black text-sm shadow-lg shadow-green-100"
-          >
-            CHECK-OUT
-          </Button>
+          <div className="space-y-1">
+            <Button
+              onClick={onCheckOut}
+              disabled={isCheckoutLocked}
+              className={cn(
+                "w-full h-11 rounded-xl text-white font-black text-sm",
+                isCheckoutLocked
+                  ? "bg-gray-300 text-gray-500 shadow-none cursor-not-allowed hover:bg-gray-300"
+                  : "bg-green-500 hover:bg-green-600 shadow-lg shadow-green-100"
+              )}
+            >
+              {isCheckoutLocked
+                ? `CHECK-OUT (${formatRemainingDuration(checkoutRule.remainingSeconds)})`
+                : "CHECK-OUT"}
+            </Button>
+            {isCheckoutLocked && (
+              <p className="text-[10px] font-bold text-gray-400 text-center uppercase tracking-tight">
+                Chưa đủ 50% thời lượng ca
+              </p>
+            )}
+          </div>
         ) : isCheckInVisible ? (
           <Button
             onClick={onCheckIn}
@@ -250,6 +372,7 @@ type ActionType = "checkin" | "checkout";
 
 export default function CheckinPage() {
   const { userInfo } = useAuthStore();
+  const [optimisticShiftState, setOptimisticShiftState] = useState<Record<number, Partial<ShiftSchema>>>({});
 
   // Clock
   const [mounted, setMounted] = useState(false);
@@ -275,7 +398,56 @@ export default function CheckinPage() {
   });
 
   // BE trả về { success, message, data: ShiftSchema[] } — data là mảng trực tiếp
-  const todayShifts: ShiftSchema[] = Array.isArray(shiftsData?.data) ? shiftsData.data : [];
+  const todayShifts = useMemo<ShiftSchema[]>(
+    () => (Array.isArray(shiftsData?.data) ? shiftsData.data : []),
+    [shiftsData?.data]
+  );
+
+  const mergedTodayShifts = useMemo<ShiftSchema[]>(
+    () =>
+      todayShifts.map((shift) => ({
+        ...shift,
+        ...(optimisticShiftState[shift.id] ?? {}),
+      })),
+    [todayShifts, optimisticShiftState]
+  );
+
+  const visibleTodayShifts = useMemo<ShiftSchema[]>(
+    () =>
+      mergedTodayShifts.filter((shift) => {
+        const timeState = getShiftTimeState(shift, currentTime);
+        return timeState.isActive || timeState.isUpcoming;
+      }),
+    [mergedTodayShifts, currentTime]
+  );
+
+  useEffect(() => {
+    if (todayShifts.length === 0) return;
+
+    setOptimisticShiftState((prev) => {
+      let changed = false;
+      const next = { ...prev };
+
+      for (const shift of todayShifts) {
+        const optimistic = next[shift.id];
+        if (!optimistic?.status) continue;
+
+        const optimisticStatus = String(optimistic.status).toUpperCase();
+        const serverStatus = String(shift.status).toUpperCase();
+
+        const shouldClear =
+          (optimisticStatus === "IN_PROGRESS" && (serverStatus === "IN_PROGRESS" || serverStatus === "COMPLETED")) ||
+          (optimisticStatus === "COMPLETED" && serverStatus === "COMPLETED");
+
+        if (shouldClear) {
+          delete next[shift.id];
+          changed = true;
+        }
+      }
+
+      return changed ? next : prev;
+    });
+  }, [todayShifts]);
 
   // Action sheet
   const [actionShift, setActionShift] = useState<ShiftSchema | null>(null);
@@ -304,9 +476,24 @@ export default function CheckinPage() {
   const [locatingForAction, setLocatingForAction] = useState<ActionType | null>(null);
   const pendingGpsRef = useRef<{ lat: number; lng: number; accuracy?: number } | null>(null);
 
+  const getFallbackCoordsForShift = (shift: ShiftSchema) => ({
+    lat: Number.isFinite(shift.customerLatitude) ? shift.customerLatitude : 0,
+    lng: Number.isFinite(shift.customerLongitude) ? shift.customerLongitude : 0,
+  });
+
   // Get initial GPS when action sheet opens
   useEffect(() => {
     if (!actionShift) return;
+
+    if (TEMP_BYPASS_GPS_VALIDATION) {
+      const fallback = getFallbackCoordsForShift(actionShift);
+      setGps(fallback);
+      pendingGpsRef.current = fallback;
+      setGpsError(null);
+      setGpsLoading(false);
+      return;
+    }
+
     if (!navigator.geolocation) {
       setGpsError("Thiết bị không hỗ trợ GPS");
       setGpsLoading(false);
@@ -389,13 +576,50 @@ export default function CheckinPage() {
   // Check-out result summary
   const [checkOutResult, setCheckOutResult] = useState<CheckOutResponse | null>(null);
 
-  // Countdown after check-in (must wait 60s before check-out)
-  const [checkInTimestamp, setCheckInTimestamp] = useState<Date | null>(null);
-  const diffSeconds = checkInTimestamp
-    ? Math.floor((currentTime.getTime() - checkInTimestamp.getTime()) / 1000)
-    : 999;
-  const countdown = Math.max(0, 60 - diffSeconds);
-  const canCheckOut = countdown === 0;
+  // Checkout rule: chỉ cho phép sau khi đã làm >= 50% thời lượng ca
+  const checkoutRule = (() => {
+    if (!actionShift || actionType !== "checkout") {
+      return {
+        requiredMinutes: 0,
+        remainingSeconds: 0,
+        canCheckOut: true,
+      };
+    }
+
+    const durationMinutes = getShiftDurationMinutes(actionShift.startTime, actionShift.endTime);
+    const requiredMinutes = Math.max(1, Math.ceil(durationMinutes * MIN_CHECKOUT_WORK_RATIO));
+
+    if (!actionShift.checkInTime) {
+      return {
+        requiredMinutes,
+        remainingSeconds: requiredMinutes * 60,
+        canCheckOut: false,
+      };
+    }
+
+    const checkInAt = new Date(actionShift.checkInTime);
+    if (Number.isNaN(checkInAt.getTime())) {
+      return {
+        requiredMinutes,
+        remainingSeconds: requiredMinutes * 60,
+        canCheckOut: false,
+      };
+    }
+
+    const elapsedSeconds = Math.max(
+      0,
+      Math.floor((currentTime.getTime() - checkInAt.getTime()) / 1000)
+    );
+    const requiredSeconds = requiredMinutes * 60;
+    const remainingSeconds = Math.max(0, requiredSeconds - elapsedSeconds);
+
+    return {
+      requiredMinutes,
+      remainingSeconds,
+      canCheckOut: remainingSeconds === 0,
+    };
+  })();
+  const canCheckOut = checkoutRule.canCheckOut;
 
   // ── Submit handlers ──────────────────────────────────────────
 
@@ -403,8 +627,9 @@ export default function CheckinPage() {
     if (!actionShift || !photoFile) return;
     setIsLateDialogOpen(false);
     setIsSubmitting(true);
-    const lat = coords?.lat ?? pendingGpsRef.current?.lat ?? gps?.lat ?? null;
-    const lng = coords?.lng ?? pendingGpsRef.current?.lng ?? gps?.lng ?? null;
+    const fallbackCoords = getFallbackCoordsForShift(actionShift);
+    const lat = coords?.lat ?? pendingGpsRef.current?.lat ?? gps?.lat ?? fallbackCoords.lat;
+    const lng = coords?.lng ?? pendingGpsRef.current?.lng ?? gps?.lng ?? fallbackCoords.lng;
     try {
       const res = await AttendanceService.checkIn({
         workScheduleId: actionShift.id,
@@ -415,7 +640,17 @@ export default function CheckinPage() {
         capturedAt: format(new Date(), "yyyy-MM-dd'T'HH:mm:ss"),
       });
       checkInResultRef.current = res.data;
-      setCheckInTimestamp(new Date());
+
+      setOptimisticShiftState((prev) => ({
+        ...prev,
+        [actionShift.id]: {
+          ...(prev[actionShift.id] ?? {}),
+          status: ShiftStatus.IN_PROGRESS,
+          checkInTime: new Date().toISOString(),
+          attendanceRecordId: res.data.attendanceRecordId ?? actionShift.attendanceRecordId ?? null,
+        },
+      }));
+
       toast.success("Check-in thành công!");
       clearPhoto();
       closeAction();
@@ -441,8 +676,9 @@ export default function CheckinPage() {
     }
     setIsCheckOutLateDialogOpen(false);
     setIsSubmitting(true);
-    const lat = coords?.lat ?? pendingGpsRef.current?.lat ?? gps?.lat ?? null;
-    const lng = coords?.lng ?? pendingGpsRef.current?.lng ?? gps?.lng ?? null;
+    const fallbackCoords = getFallbackCoordsForShift(actionShift);
+    const lat = coords?.lat ?? pendingGpsRef.current?.lat ?? gps?.lat ?? fallbackCoords.lat;
+    const lng = coords?.lng ?? pendingGpsRef.current?.lng ?? gps?.lng ?? fallbackCoords.lng;
     try {
       const formData = new FormData();
       formData.append('attendanceRecordId', String(attendanceRecordId));
@@ -457,7 +693,16 @@ export default function CheckinPage() {
       const checkOutRes = await AttendanceService.postCheckout(formData);
       
       checkInResultRef.current = null;
-      setCheckInTimestamp(null);
+
+      setOptimisticShiftState((prev) => ({
+        ...prev,
+        [actionShift.id]: {
+          ...(prev[actionShift.id] ?? {}),
+          status: ShiftStatus.COMPLETED,
+          checkOutTime: new Date().toISOString(),
+        },
+      }));
+
       clearPhoto();
       closeAction();
       refetchShifts();
@@ -479,27 +724,36 @@ export default function CheckinPage() {
     }
 
     setLocatingForAction(actionType);
-    let freshCoords;
-    try {
-      freshCoords = await acquireGps();
-    } catch (e) {
-      toast.error("Không thể lấy vị trí GPS chính xác. Vui lòng thử lại.");
-      setLocatingForAction(null);
-      return;
+    let freshCoords = getFallbackCoordsForShift(actionShift);
+
+    if (!TEMP_BYPASS_GPS_VALIDATION) {
+      try {
+        freshCoords = await acquireGps();
+      } catch {
+        toast.error("Không thể lấy vị trí GPS chính xác. Vui lòng thử lại.");
+        setLocatingForAction(null);
+        return;
+      }
+    } else {
+      pendingGpsRef.current = freshCoords;
+      setGps(freshCoords);
     }
+
     setLocatingForAction(null);
 
     // Verify distance Haversine
-    const distance = calculateDistance(
-      freshCoords.lat, 
-      freshCoords.lng, 
-      actionShift.customerLatitude, 
-      actionShift.customerLongitude
-    );
+    if (!TEMP_BYPASS_GPS_VALIDATION) {
+      const distance = calculateDistance(
+        freshCoords.lat,
+        freshCoords.lng,
+        actionShift.customerLatitude,
+        actionShift.customerLongitude
+      );
 
-    if (distance > ALLOWED_RADIUS_METERS) {
-      toast.error(`Bạn đang ở quá xa địa điểm (${distance}m). Vui lòng đến gần hơn.`);
-      return;
+      if (distance > ALLOWED_RADIUS_METERS) {
+        toast.error(`Bạn đang ở quá xa địa điểm (${distance}m). Vui lòng đến gần hơn.`);
+        return;
+      }
     }
 
     if (actionType === "checkin") {
@@ -513,14 +767,16 @@ export default function CheckinPage() {
       }
     } else {
       if (!canCheckOut) {
-        toast.error(`Vui lòng chờ ${countdown} giây để có thể Check-out`);
+        toast.error(
+          `Bạn chỉ có thể check-out sau khi đã làm ít nhất ${checkoutRule.requiredMinutes} phút (còn ${formatRemainingDuration(checkoutRule.remainingSeconds)}).`
+        );
         return;
       }
       
       const diffFromEnd = getMinutesDiff(currentTime, actionShift.endTime, actionShift.shiftDate);
       
       // Check-out muộn nếu quá 30 phút sau giờ kết thúc
-      if (diffFromEnd > 30) {
+      if (!TEMP_BYPASS_LATE_CHECKOUT_REASON && diffFromEnd > 30) {
         setIsCheckOutLateDialogOpen(true);
       } else {
         handleCheckOut(undefined, freshCoords);
@@ -530,6 +786,17 @@ export default function CheckinPage() {
 
   const isBusy = isSubmitting || !!locatingForAction;
   const confirmDisabled = isBusy || !photoFile || (actionType === "checkout" && !canCheckOut);
+
+  const currentDistanceMeters =
+    actionShift && gps
+      ? calculateDistance(gps.lat, gps.lng, actionShift.customerLatitude, actionShift.customerLongitude)
+      : null;
+
+  const isGpsWithinAllowedRadius =
+    currentDistanceMeters !== null && currentDistanceMeters <= ALLOWED_RADIUS_METERS;
+
+  const canCaptureCheckoutPhoto =
+    TEMP_BYPASS_GPS_VALIDATION || actionType !== "checkout" || (!!gps && !gpsLoading && isGpsWithinAllowedRadius);
 
   // ── Render ───────────────────────────────────────────────────
 
@@ -573,7 +840,7 @@ export default function CheckinPage() {
         )}
 
         {/* Loading skeleton */}
-        {isLoadingShifts && todayShifts.length === 0 && (
+        {isLoadingShifts && visibleTodayShifts.length === 0 && (
           <div className="space-y-3">
             {[1, 2].map((i) => (
               <div
@@ -594,19 +861,19 @@ export default function CheckinPage() {
         )}
 
         {/* Empty state */}
-        {!isLoadingShifts && !shiftsError && todayShifts.length === 0 && (
+        {!isLoadingShifts && !shiftsError && visibleTodayShifts.length === 0 && (
           <div className="bg-red-50 border border-red-100 rounded-[24px] p-8 text-center space-y-3 shadow-sm">
             <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto shadow-sm">
               <Calendar className="w-8 h-8 text-red-400" />
             </div>
             <div>
               <h3 className="text-base font-black text-red-600 uppercase tracking-tight">
-                Không có ca làm việc
+                Không có ca trong khung giờ hoạt động
               </h3>
               <p className="text-xs font-bold text-red-400 mt-1 uppercase tracking-widest leading-relaxed">
-                Hôm nay bạn không có ca nào được gán.
+                Không có ca chưa bắt đầu hoặc đang hoạt động.
                 <br />
-                Vui lòng liên hệ quản lý để được sắp xếp.
+                Các ca quá giờ đã được ẩn khỏi màn hình chấm công.
               </p>
             </div>
           </div>
@@ -614,7 +881,7 @@ export default function CheckinPage() {
 
         {/* Shift cards */}
         {(() => {
-          return todayShifts.map((shift) => (
+          return visibleTodayShifts.map((shift) => (
             <ShiftCard
               key={shift.id}
               shift={shift}
@@ -715,7 +982,7 @@ export default function CheckinPage() {
                   <div className="flex justify-between">
                     <span>📏 Khoảng cách:</span>
                     <span className="text-gray-600">
-                      {calculateDistance(gps.lat, gps.lng, actionShift.customerLatitude, actionShift.customerLongitude)}m
+                      {currentDistanceMeters ?? "?"}m
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -724,12 +991,18 @@ export default function CheckinPage() {
                   </div>
                   <div className="flex justify-between font-bold">
                     <span>Trạng thái:</span>
-                    {calculateDistance(gps.lat, gps.lng, actionShift.customerLatitude, actionShift.customerLongitude) <= ALLOWED_RADIUS_METERS 
+                    {isGpsWithinAllowedRadius
                       ? <span className="text-green-600">✅ TRONG VÙNG</span>
                       : <span className="text-red-500">❌ NGOÀI VÙNG</span>
                     }
                   </div>
                 </div>
+              )}
+
+              {actionType === "checkout" && !canCaptureCheckoutPhoto && (
+                <p className="text-[10px] font-bold text-red-500 uppercase tracking-tight leading-tight mt-1">
+                  Check-out yêu cầu GPS hợp lệ trong bán kính {ALLOWED_RADIUS_METERS}m trước khi chụp ảnh.
+                </p>
               )}
               
               {gps?.accuracy && gps.accuracy > 100 && (
@@ -742,12 +1015,20 @@ export default function CheckinPage() {
             {/* Photo capture */}
             <motion.button
               whileTap={{ scale: 0.98 }}
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => {
+                if (!canCaptureCheckoutPhoto) {
+                  toast.error(`Bạn cần đứng đúng GPS (<= ${ALLOWED_RADIUS_METERS}m) để chụp ảnh check-out.`);
+                  return;
+                }
+                fileInputRef.current?.click();
+              }}
+              disabled={actionType === "checkout" && !canCaptureCheckoutPhoto}
               className={cn(
                 "w-full flex items-center justify-center gap-3 py-4 rounded-[18px] font-bold text-sm transition-all",
                 photoFile
                   ? "bg-green-50 text-green-700 border border-green-200"
-                  : "bg-blue-600 text-white shadow-lg shadow-blue-100"
+                  : "bg-blue-600 text-white shadow-lg shadow-blue-100",
+                actionType === "checkout" && !canCaptureCheckoutPhoto && "bg-gray-200 text-gray-400 border border-gray-200 shadow-none"
               )}
             >
               <Camera className="w-5 h-5" />
@@ -773,7 +1054,7 @@ export default function CheckinPage() {
             {/* Countdown for check-out */}
             {actionType === "checkout" && !canCheckOut && (
               <p className="text-[11px] font-bold text-orange-500 text-center animate-pulse uppercase tracking-tight">
-                Vui lòng chờ {countdown} giây để có thể Check-out
+                Cần làm tối thiểu {checkoutRule.requiredMinutes} phút trước khi Check-out (còn {formatRemainingDuration(checkoutRule.remainingSeconds)})
               </p>
             )}
 

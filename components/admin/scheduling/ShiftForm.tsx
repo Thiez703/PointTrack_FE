@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState, useMemo } from 'react'
+import React, { useEffect, useState, useMemo, useRef } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
@@ -79,6 +79,22 @@ interface ShiftFormProps {
   onCancel: () => void
 }
 
+const extractErrorMessage = (error: unknown, fallback: string) => {
+  if (!error || typeof error !== 'object') return fallback
+
+  const err = error as {
+    message?: string
+    response?: {
+      data?: {
+        detail?: string
+        message?: string
+      }
+    }
+  }
+
+  return err.response?.data?.detail || err.response?.data?.message || err.message || fallback
+}
+
 const ShiftForm: React.FC<ShiftFormProps> = ({ initialData, onSuccess, onCancel }) => {
   const [employees, setEmployees] = useState<Employee[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
@@ -87,6 +103,7 @@ const ShiftForm: React.FC<ShiftFormProps> = ({ initialData, onSuccess, onCancel 
   const [conflict, setConflict] = useState<ShiftConflictResponse | null>(null)
   const [availableEmployees, setAvailableEmployees] = useState<AvailableEmployee[]>([])
   const [showAvailable, setShowAvailable] = useState(false)
+  const lastConflictErrorRef = useRef<string | null>(null)
 
   // Status-based logic flags
   const status = initialData?.status;
@@ -168,8 +185,8 @@ const ShiftForm: React.FC<ShiftFormProps> = ({ initialData, onSuccess, onCancel 
         ])
         setEmployees(empRes.data.content || [])
         setCustomers(custRes.data || [])
-      } catch (error: any) {
-        console.error('Error fetching form data:', error)
+      } catch (error) {
+        toast.error(extractErrorMessage(error, 'Không thể tải dữ liệu biểu mẫu'))
       }
     }
     fetchData()
@@ -190,8 +207,16 @@ const ShiftForm: React.FC<ShiftFormProps> = ({ initialData, onSuccess, onCancel 
             excludeShiftId: initialData?.id
           })
           setConflict(res.data)
-        } catch (error: any) {
-          console.error('Conflict check error:', error)
+          lastConflictErrorRef.current = null
+        } catch (error) {
+          setConflict(null)
+          const message = extractErrorMessage(error, 'Không thể kiểm tra trùng lịch')
+
+          // Tránh spam toast khi useEffect chạy nhiều lần với cùng một lỗi.
+          if (lastConflictErrorRef.current !== message) {
+            toast.error(message)
+            lastConflictErrorRef.current = message
+          }
         } finally {
           setIsCheckingConflict(false)
         }

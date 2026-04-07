@@ -1,6 +1,6 @@
 import { AuthService } from '@/app/services/auth.service'
 import { LoginFormValues } from '@/app/types/auth.schema'
-import { AxiosError } from 'axios'
+import { isAxiosError } from 'axios'
 import { jwtDecode, JwtPayload } from 'jwt-decode'
 import { NextResponse } from 'next/server'
 
@@ -60,10 +60,15 @@ export async function POST(request: Request) {
 
     return response
   } catch (e) {
-    if (e instanceof AxiosError) {
+    const maybeApiError = e as {
+      response?: { data?: unknown; status?: number }
+      message?: string
+    }
+
+    if (isAxiosError(e) || maybeApiError?.response) {
       return NextResponse.json(
-        e.response?.data || { message: e.message },
-        { status: e.response?.status || 500 }
+        maybeApiError.response?.data || { message: maybeApiError.message || 'Request failed' },
+        { status: maybeApiError.response?.status || 500 }
       )
     }
     return NextResponse.json({ message: 'Internal server error' }, { status: 500 })

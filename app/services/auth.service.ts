@@ -10,7 +10,12 @@ export class AuthService {
   // ─── Direct Java BE calls (used in Next.js server-side proxy routes) ───
 
   static async loginJava(userData: LoginFormValues): Promise<AuthResponse> {
-    const response = await apiJava.post<AuthResponse>(API_ENDPOINTS.AUTH.LOGIN, userData)
+    // Include both `contact` and `phoneNumber` for BE compatibility across API versions.
+    const payload = {
+      ...userData,
+      phoneNumber: userData.contact,
+    }
+    const response = await apiJava.post<AuthResponse>(API_ENDPOINTS.AUTH.LOGIN, payload)
     return response.data
   }
 

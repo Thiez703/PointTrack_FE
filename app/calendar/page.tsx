@@ -38,6 +38,24 @@ function getShiftPeriod(startTime: string): 'Sáng' | 'Chiều' | 'Đêm' {
   return 'Đêm'
 }
 
+function parseShiftDateTime(shiftDate: string, timeStr: string): Date {
+  const [year, month, day] = shiftDate.split('-').map(Number)
+  const [hour, minute] = timeStr.split(':').map(Number)
+  return new Date(year, (month ?? 1) - 1, day ?? 1, hour ?? 0, minute ?? 0, 0, 0)
+}
+
+function getShiftTimeState(shift: ShiftSchema, now: Date) {
+  const startAt = parseShiftDateTime(shift.shiftDate, shift.startTime)
+  const endAt = parseShiftDateTime(shift.shiftDate, shift.endTime)
+
+  if (endAt.getTime() <= startAt.getTime()) {
+    endAt.setDate(endAt.getDate() + 1)
+  }
+
+  const isExpired = now.getTime() > endAt.getTime()
+  return { startAt, endAt, isExpired }
+}
+
 const TODAY = new Date()
 const TODAY_STR = format(TODAY, 'yyyy-MM-dd')
 
@@ -239,20 +257,45 @@ export default function CalendarPage() {
 
   const renderShiftCard = (shift: ShiftSchema, index: number) => {
     const period = getShiftPeriod(shift.startTime)
-    const isPast = shift.shiftDate < TODAY_STR
+    const now = new Date()
+    const { isExpired } = getShiftTimeState(shift, now)
+    const isAttendanceCompleted =
+      shift.status === ShiftStatus.COMPLETED ||
+      (!!shift.checkInTime && !!shift.checkOutTime)
+    const isExpiredCompleted = isExpired && isAttendanceCompleted
+    const isExpiredIncomplete = isExpired && !isAttendanceCompleted
+    const isReadOnlyExpired = isExpiredCompleted || isExpiredIncomplete
 
     // Determine effective status for display
     let effectiveStatus = shift.status;
     
-    if (shift.status === ShiftStatus.COMPLETED || !!shift.checkOutTime || (!!shift.checkInTime && isPast)) {
+    if (shift.status === ShiftStatus.COMPLETED || !!shift.checkOutTime) {
       effectiveStatus = ShiftStatus.COMPLETED;
-    } else if (shift.status === ShiftStatus.IN_PROGRESS || !!shift.checkInTime) {
+    } else if (shift.status === ShiftStatus.IN_PROGRESS || shift.status === ShiftStatus.MISSING_OUT || !!shift.checkInTime) {
       effectiveStatus = ShiftStatus.IN_PROGRESS;
     }
 
-    const theme = getStatusTheme(effectiveStatus)
+    const theme = isExpiredCompleted
+      ? {
+          bg: 'bg-blue-50/70',
+          border: 'border-blue-100',
+          text: 'text-blue-700',
+          accent: 'bg-blue-300',
+          badge: 'bg-blue-100 text-blue-700',
+          label: 'Đã hoàn thành'
+        }
+      : isExpiredIncomplete
+      ? {
+          bg: 'bg-red-50/70',
+          border: 'border-red-100',
+          text: 'text-red-700',
+          accent: 'bg-red-300',
+          badge: 'bg-red-100 text-red-700',
+          label: 'Quá giờ'
+        }
+      : getStatusTheme(effectiveStatus)
     const Icon = shiftIcons[period]
-    const isCompletedShift = effectiveStatus === ShiftStatus.COMPLETED
+    const isCompletedShift = effectiveStatus === ShiftStatus.COMPLETED || isExpiredCompleted
     
     return (
       <motion.div
@@ -261,7 +304,14 @@ export default function CalendarPage() {
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: index * 0.1, type: 'spring', stiffness: 300, damping: 24 }}
       >
-        <Card className={cn("overflow-hidden border-none shadow-sm mb-4", theme.bg, isCompletedShift && "opacity-75 grayscale-[0.5]")}>
+        <Card className={cn(
+          "overflow-hidden border-none shadow-sm mb-4",
+          theme.bg,
+          theme.border,
+          isExpiredCompleted && "opacity-70",
+          isExpiredIncomplete && "opacity-60",
+          isCompletedShift && !isExpiredCompleted && "opacity-75 grayscale-[0.5]"
+        )}>
           <CardContent className="p-0">
             <div className={cn("h-1.5 w-full", theme.accent)} />
             <div className="p-4">
@@ -279,7 +329,7 @@ export default function CalendarPage() {
                   </div>
                 </div>
                 <Badge variant="outline" className={cn("font-bold border-none", theme.badge)}>
-                  {isCompletedShift ? "Đã hoàn thành" : theme.label}
+                  {isExpiredIncomplete ? "Quá giờ" : isCompletedShift ? "Đã hoàn thành" : theme.label}
                 </Badge>
               </div>
 
@@ -309,13 +359,22 @@ export default function CalendarPage() {
               </div>
 
               <div className="mt-5 flex gap-2">
-                {!isCompletedShift ? (
+                {isReadOnlyExpired ? (
+                  <div className={cn(
+                    "w-full py-2 text-center text-[10px] font-black uppercase tracking-[0.2em] italic",
+                    isExpiredCompleted ? "text-blue-400" : "text-red-400"
+                  )}>
+                    {isExpiredCompleted
+                      ? 'Ca đã hoàn thành và quá thời gian làm việc'
+                      : 'Ca đã quá thời gian làm việc nhưng chưa check-in/check-out đầy đủ'}
+                  </div>
+                ) : !isCompletedShift ? (
                   <>
                     <button className="flex-1 py-2.5 bg-white border border-gray-100 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2">
                       <Info className="w-3.5 h-3.5 text-orange-500" />
                       Chi tiết
                     </button>
-                    {shift.status === ShiftStatus.ASSIGNED && !isPast && (
+                    {shift.status === ShiftStatus.ASSIGNED && !isExpired && (
                       <button 
                         onClick={() => confirmMutation.mutate(shift.id)}
                         disabled={confirmMutation.isPending}
@@ -325,7 +384,7 @@ export default function CalendarPage() {
                         <ArrowRight className="w-3.5 h-3.5" />
                       </button>
                     )}
-                    {((shift.status === ShiftStatus.CONFIRMED && !isPast) || shift.status === ShiftStatus.IN_PROGRESS) && (
+                    {((shift.status === ShiftStatus.CONFIRMED && !isExpired) || shift.status === ShiftStatus.IN_PROGRESS) && (
                       <button 
                         onClick={() => router.push('/checkin')}
                         className="flex-1 py-2.5 bg-orange-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-orange-100 hover:bg-orange-600 transition-colors flex items-center justify-center gap-2"
