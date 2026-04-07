@@ -59,7 +59,7 @@ export default function Home() {
         },
         { 
             label: 'Tổng giờ làm', 
-            value: `${(stats?.summary?.totalHoursThisMonth || 0).toFixed(1)} giờ`, 
+            value: `${(stats?.summary?.totalHoursThisMonth || 0).toFixed(2)} giờ`, 
             icon: Clock, 
             color: 'from-blue-400 to-blue-500' 
         },
