@@ -9,13 +9,13 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-interface Column<T> {
+export interface Column<T> {
   header: string;
   accessor: keyof T | ((item: T) => React.ReactNode);
   className?: string;
 }
 
-interface DataTableProps<T> {
+export interface DataTableProps<T> {
   title: string;
   description?: string;
   columns: Column<T>[];

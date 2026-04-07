@@ -1,81 +1,124 @@
-"use client";
+'use client'
 
-import { useQuery } from "@tanstack/react-query";
-import { AdminService } from "@/app/services/admin.service";
-import { DataTable } from "@/components/admin/DataTable";
-import { AttendanceRecord } from "@/app/types/admin.schema";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
-import { Clock, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import React, { useState } from 'react'
+import { useAttendanceHistory } from '@/hooks/useAttendanceHistory'
+import AttendanceSummaryCards from '@/components/admin/attendance/AttendanceSummaryCards'
+import AttendanceFilterBar from '@/components/admin/attendance/AttendanceFilterBar'
+import AttendanceTable from '@/components/admin/attendance/AttendanceTable'
+import AttendancePagination from '@/components/admin/attendance/AttendancePagination'
+import AttendanceDetailDrawer from '@/components/admin/attendance/AttendanceDetailDrawer'
+import AttendanceNoteModal from '@/components/admin/attendance/AttendanceNoteModal'
+import { AttendanceRecord } from '@/app/types/attendance'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { AlertCircle, RefreshCcw } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 
-export default function AttendancePage() {
-  const { data, isLoading } = useQuery({
-    queryKey: ["admin", "attendance"],
-    queryFn: () => AdminService.getAttendanceRecords(),
-  });
+const AttendanceHistoryPage = () => {
+  const {
+    records,
+    pagination,
+    summary,
+    locations,
+    filters,
+    updateFilter,
+    resetFilters,
+    isLoading,
+    isError,
+    refetch,
+    updateNote,
+    isUpdatingNote,
+    exportExcel,
+    isExporting,
+  } = useAttendanceHistory()
 
-  const columns = [
-    { 
-      header: "Nhân viên", 
-      accessor: (item: AttendanceRecord) => (
-        <span className="font-bold text-gray-800">{item.employeeName}</span>
-      )
-    },
-    { 
-      header: "Địa điểm / Ca", 
-      accessor: (item: AttendanceRecord) => (
-        <div className="flex flex-col">
-          <span className="text-sm font-bold text-gray-600">{item.customerName}</span>
-          <span className="text-[11px] text-gray-400 font-bold uppercase tracking-wider">{item.shiftName}</span>
-        </div>
-      )
-    },
-    { 
-      header: "Giờ vào/ra", 
-      accessor: (item: AttendanceRecord) => (
-        <div className="flex items-center gap-3">
-           <div className="flex flex-col items-center">
-              <span className="text-[10px] font-black text-gray-400 uppercase">IN</span>
-              <span className="text-sm font-black text-orange-600">{item.checkInTime || "--:--"}</span>
-           </div>
-           <div className="w-[1px] h-6 bg-gray-100"></div>
-           <div className="flex flex-col items-center">
-              <span className="text-[10px] font-black text-gray-400 uppercase">OUT</span>
-              <span className="text-sm font-black text-gray-800">{item.checkOutTime || "--:--"}</span>
-           </div>
-        </div>
-      )
-    },
-    { 
-      header: "Trạng thái", 
-      accessor: (item: AttendanceRecord) => {
-        const statusConfig = {
-          PRESENT: { label: "Hợp lệ", color: "text-green-600 bg-green-50 border-green-100", icon: CheckCircle2 },
-          ABSENT: { label: "Vắng mặt", color: "text-red-600 bg-red-50 border-red-100", icon: XCircle },
-          LATE: { label: "Đi muộn", color: "text-orange-600 bg-orange-50 border-orange-100", icon: Clock },
-          EARLY_LEAVE: { label: "Về sớm", color: "text-blue-600 bg-blue-50 border-blue-100", icon: AlertCircle },
-        };
-        const config = statusConfig[item.status] || statusConfig.PRESENT;
-        return (
-          <Badge className={cn("px-3 py-1.5 rounded-xl border flex items-center gap-1.5 w-fit", config.color)}>
-            <config.icon className="w-3.5 h-3.5" />
-            <span className="text-[10px] font-black uppercase tracking-widest">{config.label}</span>
-          </Badge>
-        );
-      }
-    },
-  ];
+  const [selectedRecord, setSelectedRecord] = useState<AttendanceRecord | null>(null)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [noteModalOpen, setNoteModalOpen] = useState(false)
+
+  const handleViewDetail = (record: AttendanceRecord) => {
+    setSelectedRecord(record)
+    setDrawerOpen(true)
+  }
+
+  const handleEditNote = (record: AttendanceRecord) => {
+    setSelectedRecord(record)
+    setNoteModalOpen(true)
+  }
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <DataTable<AttendanceRecord>
-        title="Lịch sử Chấm công"
-        description="Theo dõi chi tiết giờ giấc làm việc và trạng thái chuyên cần của nhân viên."
-        columns={columns}
-        data={data?.data || []}
-        isLoading={isLoading}
+    <div className="container mx-auto py-8 px-4 max-w-7xl animate-in fade-in duration-500">
+      <div className="flex flex-col mb-8">
+        <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Lịch sử Chấm công</h1>
+        <p className="text-gray-500 mt-1 font-medium">Quản lý và theo dõi thời gian làm việc của nhân viên toàn hệ thống.</p>
+      </div>
+
+      {/* Summary Section */}
+      <AttendanceSummaryCards 
+        summary={summary} 
+        activeStatus={filters.status || ''} 
+        onStatusClick={(status) => updateFilter({ status, page: 1 })}
+      />
+
+      {/* Filters Section */}
+      <AttendanceFilterBar 
+        filters={filters}
+        locations={locations}
+        onFilterChange={updateFilter}
+        onReset={resetFilters}
+        onExport={exportExcel}
+        isExporting={isExporting}
+      />
+
+      {/* Error State */}
+      {isError && (
+        <Alert variant="destructive" className="mb-6 rounded-xl border-2">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Lỗi tải dữ liệu</AlertTitle>
+          <AlertDescription className="flex items-center justify-between">
+            <span>Đã có lỗi xảy ra khi kết nối với máy chủ. Vui lòng thử lại.</span>
+            <Button variant="outline" size="sm" onClick={() => refetch()} className="ml-4 flex gap-2">
+              <RefreshCcw className="w-3.5 h-3.5" /> Thử lại
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Main Table */}
+      <AttendanceTable 
+        records={records} 
+        isLoading={isLoading} 
+        onView={handleViewDetail}
+        onEditNote={handleEditNote}
+      />
+
+      {/* Pagination */}
+      {!isLoading && records.length > 0 && (
+        <AttendancePagination 
+          pagination={pagination}
+          onPageChange={(page) => updateFilter({ page })}
+          onLimitChange={(limit) => updateFilter({ limit, page: 1 })}
+        />
+      )}
+
+      {/* Drawer & Modals */}
+      <AttendanceDetailDrawer 
+        record={selectedRecord}
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        onUpdateNote={(id, note) => updateNote({ id, note })}
+        isUpdating={isUpdatingNote}
+        onRefresh={refetch}
+      />
+
+      <AttendanceNoteModal 
+        record={selectedRecord}
+        open={noteModalOpen}
+        onClose={() => setNoteModalOpen(false)}
+        onSave={(id, note) => updateNote({ id, note })}
+        isSaving={isUpdatingNote}
       />
     </div>
-  );
+  )
 }
 
+export default AttendanceHistoryPage

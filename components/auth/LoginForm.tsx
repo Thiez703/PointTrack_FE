@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
-import { Phone, Lock, Eye, EyeOff } from "lucide-react";
+import { User, Lock, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import Turnstile from "react-turnstile";
 import { motion } from "framer-motion";
@@ -42,13 +42,23 @@ export default function LoginForm() {
     resolver: zodResolver(LoginSchema),
     mode: "all",
     defaultValues: {
-      phoneNumber: "",
+      contact: "",
       password: "",
       captchaToken: "",
     },
   });
 
   const captchaToken = watch("captchaToken");
+
+  // Captcha loading timeout to prevent UI freeze
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (isCaptchaLoading) {
+        setIsCaptchaLoading(false);
+      }
+    }, 10000); // 10s timeout
+    return () => clearTimeout(timer);
+  }, [isCaptchaLoading]);
 
   const mutation = useMutation({
     mutationFn: (data: LoginFormValues) => AuthService.login(data),
@@ -66,7 +76,7 @@ export default function LoginForm() {
         if (data.role === "ADMIN") {
           router.push("/admin");
         } else {
-          router.push("/");
+          router.push("/checkin");
         }
       }
     },
@@ -80,7 +90,7 @@ export default function LoginForm() {
         if (detail.toLowerCase().includes("vô hiệu hóa")) {
           toast.error("Tài khoản đã bị vô hiệu hóa");
         } else {
-          toast.error("Thông tin đăng nhập không hợp lệ (SĐT hoặc mật khẩu)");
+          toast.error("Thông tin đăng nhập không hợp lệ (Email/SĐT hoặc mật khẩu)");
         }
       } else {
         toast.error(detail || `Lỗi hệ thống (${status || 'Network Error'}), vui lòng thử lại.`);
@@ -98,28 +108,32 @@ export default function LoginForm() {
   };
 
   const onSubmit = (data: LoginFormValues) => {
+    if (!data.captchaToken) {
+      toast.error("Vui lòng xác thực Captcha trước khi đăng nhập");
+      return;
+    }
     mutation.mutate(data);
   };
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 sm:space-y-5 lg:space-y-6 w-full">
-      {/* Phone input */}
+      {/* Contact input */}
       <div>
-        <label className="text-sm font-bold text-gray-700 dark:text-slate-300 mb-1.5 lg:mb-2 block ml-1">Số điện thoại</label>
+        <label className="text-sm font-bold text-gray-700 dark:text-slate-300 mb-1.5 lg:mb-2 block ml-1">Email hoặc Số điện thoại</label>
         <div className="relative">
           <div className="absolute left-4 top-1/2 -translate-y-1/2 z-10">
-             <Phone className={`w-5 h-5 ${errors.phoneNumber ? "text-red-500" : "text-gray-400 dark:text-slate-500"}`} />
+             <User className={`w-5 h-5 ${errors.contact ? "text-red-500" : "text-gray-400 dark:text-slate-500"}`} />
           </div>
           <input
-            type="tel"
-            placeholder="Nhập số điện thoại"
+            type="text"
+            placeholder="Nhập email hoặc số điện thoại"
             disabled={mutation.isPending}
-            className={`login-input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white ${errors.phoneNumber ? "border-red-500 ring-1 ring-red-100" : ""}`}
-            {...register("phoneNumber")}
+            className={`login-input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white ${errors.contact ? "border-red-500 ring-1 ring-red-100" : ""}`}
+            {...register("contact")}
           />
         </div>
-        {errors.phoneNumber && (
-          <p className="text-[11px] text-red-500 font-medium ml-1 mt-1.5">{errors.phoneNumber.message}</p>
+        {errors.contact && (
+          <p className="text-[11px] text-red-500 font-medium ml-1 mt-1.5">{errors.contact.message}</p>
         )}
       </div>
 
@@ -186,7 +200,7 @@ export default function LoginForm() {
       <motion.button
         type="submit"
         whileTap={{ scale: 0.98 }}
-        disabled={mutation.isPending || !captchaToken}
+        disabled={mutation.isPending}
         className="login-btn-primary w-full !py-4 lg:!py-5 !rounded-2xl !text-base lg:!text-lg !font-black disabled:opacity-60 shadow-xl shadow-orange-100 dark:shadow-none transition-all duration-300"
       >
         {mutation.isPending ? (

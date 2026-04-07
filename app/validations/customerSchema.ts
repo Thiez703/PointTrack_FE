@@ -14,15 +14,11 @@ export const customerSchema = z.object({
     .or(z.literal('')),
 
   address: z.string()
-    .min(1, 'Vui lòng chọn vị trí trên bản đồ'),
+    .min(1, 'Vui lòng nhập địa chỉ'),
 
-  latitude: z.number({
-    required_error: 'Vui lòng chọn vị trí trên bản đồ'
-  }).nullable(),
+  latitude: z.number().optional().nullable(),
 
-  longitude: z.number({
-    required_error: 'Vui lòng chọn vị trí trên bản đồ'
-  }).nullable(),
+  longitude: z.number().optional().nullable(),
 
   specialNotes: z.string().max(1000).optional(),
 

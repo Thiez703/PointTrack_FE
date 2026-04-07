@@ -1,4 +1,5 @@
 import { apiJava } from '@/lib/axios'
+import { API_ENDPOINTS } from '@/lib/endpoints'
 import {
   ApiAttendanceResponse,
   ShiftSchema,
@@ -25,9 +26,6 @@ export interface ShiftTemplate {
 }
 
 export class SchedulingService {
-  private static readonly SHIFT_PREFIX = 'shifts'
-  private static readonly TEMPLATE_PREFIX = ''
-
   /**
    * 5. Lấy danh sách ca (filter tuần/tháng/NV)
    */
@@ -40,7 +38,7 @@ export class SchedulingService {
     employeeId?: number | string
   }): Promise<ApiAttendanceResponse<{ content: ShiftSchema[] }>> {
     const response = await apiJava.get<ApiAttendanceResponse<{ content: ShiftSchema[] }>>(
-      this.SHIFT_PREFIX,
+      API_ENDPOINTS.SHIFTS.LIST,
       { params }
     )
     return response.data
@@ -58,7 +56,7 @@ export class SchedulingService {
     excludeShiftId?: number
   }): Promise<ApiAttendanceResponse<ShiftConflictResponse>> {
     const response = await apiJava.get<ApiAttendanceResponse<ShiftConflictResponse>>(
-      `${this.SHIFT_PREFIX}/conflict-check`,
+      API_ENDPOINTS.SHIFTS.CONFLICT_CHECK,
       { params }
     )
     return response.data
@@ -74,7 +72,7 @@ export class SchedulingService {
     shiftType?: ShiftType
   }): Promise<ApiAttendanceResponse<AvailableEmployee[]>> {
     const response = await apiJava.get<ApiAttendanceResponse<AvailableEmployee[]>>(
-      `${this.SHIFT_PREFIX}/available-employees`,
+      API_ENDPOINTS.SHIFTS.AVAILABLE_EMPLOYEES,
       { params }
     )
     return response.data
@@ -82,7 +80,7 @@ export class SchedulingService {
 
   static async getShiftTemplates(): Promise<ApiAttendanceResponse<ShiftTemplate[]>> {
     const response = await apiJava.get<ApiAttendanceResponse<ShiftTemplate[]>>(
-      'shift-templates'
+      API_ENDPOINTS.SHIFT_TEMPLATES.LIST
     )
     return response.data
   }
@@ -92,7 +90,7 @@ export class SchedulingService {
    */
   static async createShift(data: CreateShiftRequest): Promise<ApiAttendanceResponse<ShiftSchema>> {
     const response = await apiJava.post<ApiAttendanceResponse<ShiftSchema>>(
-      this.SHIFT_PREFIX,
+      API_ENDPOINTS.SHIFTS.CREATE,
       data
     )
     return response.data
@@ -103,7 +101,7 @@ export class SchedulingService {
    */
   static async assignShift(data: AssignShiftRequest): Promise<ApiAttendanceResponse<any>> {
     const response = await apiJava.post<ApiAttendanceResponse<any>>(
-      `${this.SHIFT_PREFIX}/assign`,
+      API_ENDPOINTS.SHIFTS.ASSIGN,
       data
     )
     return response.data
@@ -114,7 +112,7 @@ export class SchedulingService {
    */
   static async createRecurringShift(data: RecurringShiftRequest): Promise<ApiAttendanceResponse<RecurringShiftResponse>> {
     const response = await apiJava.post<ApiAttendanceResponse<RecurringShiftResponse>>(
-      `${this.SHIFT_PREFIX}/recurring`,
+      API_ENDPOINTS.SHIFTS.RECURRING,
       data
     )
     return response.data
@@ -125,7 +123,7 @@ export class SchedulingService {
    */
   static async assignEmployeeToExistingShift(shiftId: number, employeeId: number): Promise<ApiAttendanceResponse<any>> {
     const response = await apiJava.put<ApiAttendanceResponse<any>>(
-      `${this.SHIFT_PREFIX}/${shiftId}/assign`,
+      API_ENDPOINTS.SHIFTS.UPDATE_ASSIGN(shiftId),
       {},
       { params: { employeeId } }
     )
@@ -137,18 +135,40 @@ export class SchedulingService {
    */
   static async copyWeek(data: CopyWeekRequest): Promise<ApiAttendanceResponse<CopyWeekResponse>> {
     const response = await apiJava.post<ApiAttendanceResponse<CopyWeekResponse>>(
-      `${this.SHIFT_PREFIX}/copy-week`,
+      API_ENDPOINTS.SHIFTS.COPY_WEEK,
       data
     )
     return response.data
   }
 
   /**
-   * 6. Xóa / Huỷ ca (Soft delete)
+   * 6. Hủy ca (Soft delete)
    */
   static async cancelShift(id: number): Promise<ApiAttendanceResponse<void>> {
     const response = await apiJava.delete<ApiAttendanceResponse<void>>(
-      `${this.SHIFT_PREFIX}/${id}`
+      API_ENDPOINTS.SHIFTS.DELETE(id)
+    )
+    return response.data
+  }
+
+  /**
+   * 6B. Gỡ nhân viên khỏi ca (Trở về PUBLISHED)
+   * DELETE /shifts/${id}/assign
+   */
+  static async unassignShift(id: number): Promise<ApiAttendanceResponse<void>> {
+    const response = await apiJava.delete<ApiAttendanceResponse<void>>(
+      API_ENDPOINTS.SHIFTS.UNASSIGN(id)
+    )
+    return response.data
+  }
+
+  /**
+   * 6C. Xóa vĩnh viễn ca khỏi DB
+   * DELETE /shifts/${id}/hard
+   */
+  static async hardDeleteShift(id: number): Promise<ApiAttendanceResponse<void>> {
+    const response = await apiJava.delete<ApiAttendanceResponse<void>>(
+      API_ENDPOINTS.SHIFTS.DELETE_HARD(id)
     )
     return response.data
   }
@@ -158,7 +178,7 @@ export class SchedulingService {
    */
   static async getOpenShifts(): Promise<ApiAttendanceResponse<ShiftSchema[]>> {
     const response = await apiJava.get<ApiAttendanceResponse<ShiftSchema[]>>(
-      `${this.SHIFT_PREFIX}/open`
+      API_ENDPOINTS.SHIFTS.OPEN
     )
     return response.data
   }
@@ -168,7 +188,7 @@ export class SchedulingService {
    */
   static async claimShift(shiftId: number): Promise<ApiAttendanceResponse<void>> {
     const response = await apiJava.post<ApiAttendanceResponse<void>>(
-      `${this.SHIFT_PREFIX}/${shiftId}/claim`
+      API_ENDPOINTS.SHIFTS.CLAIM(shiftId)
     )
     return response.data
   }
@@ -179,7 +199,7 @@ export class SchedulingService {
    */
   static async getMyTodayShifts(): Promise<ApiAttendanceResponse<ShiftSchema[]>> {
     const response = await apiJava.get<ApiAttendanceResponse<ShiftSchema[]>>(
-      `${this.SHIFT_PREFIX}/my-today`
+      API_ENDPOINTS.SHIFTS.MY_TODAY
     )
     return response.data
   }
@@ -189,7 +209,7 @@ export class SchedulingService {
    */
   static async confirmShift(shiftId: number, employeeId?: number | string): Promise<ApiAttendanceResponse<void>> {
     const response = await apiJava.post<ApiAttendanceResponse<void>>(
-      `${this.SHIFT_PREFIX}/${shiftId}/confirm`,
+      API_ENDPOINTS.SHIFTS.CONFIRM(shiftId),
       {},
       { params: { employeeId } }
     )

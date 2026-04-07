@@ -4,10 +4,9 @@ import { z } from "zod";
 const phoneRegex = /^0\d{9}$/;
 
 export const LoginSchema = z.object({
-  phoneNumber: z
+  contact: z
     .string()
-    .min(1, { message: "Vui lòng nhập Số điện thoại" })
-    .regex(phoneRegex, { message: "Số điện thoại VN không hợp lệ (ví dụ: 0912345678)" }),
+    .min(1, { message: "Vui lòng nhập Email hoặc Số điện thoại" }),
 
   password: z
     .string()

@@ -15,7 +15,8 @@ import {
   ChevronRight,
   ChevronLeft,
   Menu,
-  FileText
+  FileText,
+  RefreshCw
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -30,9 +31,9 @@ const menuItems = [
   { name: "Nhân sự", href: "/admin/personnel", icon: Users },
   { name: "Khách hàng", href: "/admin/customers", icon: MapPin },
   { name: "Lập lịch", href: "/admin/schedule", icon: CalendarCheck },
-  { name: "Ca mẫu", href: "/admin/shift-templates", icon: Clock },
   { name: "Chấm công", href: "/admin/attendance", icon: Calendar },
   { name: "Giải trình", href: "/admin/attendance/explanations", icon: FileText },
+  { name: "Đổi ca", href: "/admin/shift-swap", icon: RefreshCw },
   { name: "Bậc lương", href: "/admin/salary-levels", icon: Banknote },
   { name: "Cấu hình", href: "/admin/settings", icon: Settings },
 ];
@@ -79,7 +80,7 @@ export function AdminSidebar() {
       <nav className="flex-1 px-3 py-4 space-y-2 overflow-y-auto no-scrollbar scroll-smooth">
         <TooltipProvider delayDuration={0}>
           {menuItems.map((item) => {
-            const isActive = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href));
+            const isActive = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href + "/"));
             
             const linkContent = (
               <div className={cn(
@@ -206,7 +207,7 @@ export function AdminSidebar() {
             <div className="flex-1 overflow-y-auto px-3">
                {/* Mobile specific navigation list - always expanded */}
                {menuItems.map((item) => {
-                  const isActive = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href));
+                  const isActive = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href + "/"));
                   return (
                     <Link key={item.href} href={item.href} onClick={() => setIsOpen(false)}>
                       <div className={cn(

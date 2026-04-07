@@ -89,7 +89,7 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
                   <div className="flex flex-col max-w-[300px]">
                     <span className="text-sm text-gray-600 line-clamp-1 mb-1 font-medium">{customer.address}</span>
                     <div className="flex items-center gap-2">
-                      {customer.latitude !== null && customer.longitude !== null ? (
+                      {customer.latitude && customer.longitude ? (
                         <div className="flex items-center gap-1.5 bg-green-50 text-green-600 px-2 py-0.5 rounded-full text-[10px] font-black">
                           <Map className="w-3 h-3" />
                           <span>{customer.latitude.toFixed(4)}, {customer.longitude.toFixed(4)}</span>

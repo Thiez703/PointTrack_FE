@@ -31,12 +31,12 @@ export default function Home() {
     }
 
     const stats = user?.workStatistics;
-    const weeklyChartData = stats?.history || [
+    const weeklyChartData = Array.isArray(stats?.history) ? stats.history : [
         { month: 'T2', days: 0 }, { month: 'T3', days: 0 }, { month: 'T4', days: 0 },
         { month: 'T5', days: 0 }, { month: 'T6', days: 0 }, { month: 'T7', days: 0 }, { month: 'CN', days: 0 },
     ];
 
-    const maxHours = Math.max(...weeklyChartData.map(d => d.days), 1);
+    const maxHours = Math.max(...weeklyChartData.map(d => Number(d.days) || 0), 1);
 
     const notifications = [
         { id: 1, title: 'Ca làm việc mới được phân công', message: 'Bạn được phân công ca sáng ngày 17/03/2026 tại KCN Tân Bình.', time: '10 phút trước', read: false, type: 'shift' },

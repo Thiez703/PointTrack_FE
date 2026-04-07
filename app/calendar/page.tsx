@@ -107,7 +107,7 @@ const WEEKDAYS_SHORT = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
 
 export default function CalendarPage() {
   const { userInfo } = useAuthStore()
-  const userId = userInfo?.userId || userInfo?.id
+  const userId = userInfo?.userId
   const router = useRouter()
   const queryClient = useQueryClient()
 

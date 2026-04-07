@@ -20,7 +20,6 @@ const pageTitles: Record<string, string> = {
   "/admin/personnel": "Quản lý nhân sự",
   "/admin/customers": "Danh sách khách hàng",
   "/admin/schedule": "Lập lịch làm việc",
-  "/admin/shift-templates": "Cấu hình ca mẫu",
   "/admin/attendance": "Dữ liệu chấm công",
   "/admin/salary-levels": "Cấu hình bậc lương",
   "/admin/settings": "Cài đặt hệ thống",

@@ -1,7 +1,7 @@
 export type CheckInFormData = {
   workScheduleId: number
-  lat: number
-  lng: number
+  latitude?: number | null
+  longitude?: number | null
   photo: File
   capturedAt?: string
   note?: string
@@ -20,8 +20,8 @@ export type CheckInResponse = {
 
 export type CheckOutFormData = {
   attendanceRecordId: number
-  lat: number
-  lng: number
+  latitude?: number | null
+  longitude?: number | null
   photo: File
   capturedAt?: string
   checkOutReason?: string
@@ -109,8 +109,6 @@ export interface ShiftSchema {
   customerLatitude: number
   customerLongitude: number
   customerAddress: string
-  templateId: number | null
-  templateName: string | null
   packageId: number | null
   shiftDate: string
   startTime: string
@@ -121,6 +119,7 @@ export interface ShiftSchema {
   status: ShiftStatus
   notes: string | null
   checkInTime: string | null
+  attendanceRecordId?: number | null
   checkInLat: number | null
   checkInLng: number | null
   checkInDistanceMeters: number | null
@@ -152,7 +151,6 @@ export interface AvailableEmployee {
 export interface CreateShiftRequest {
   employeeId?: number | null
   customerId: number
-  templateId?: number | null
   shiftDate: string
   startTime: string
   endTime: string
@@ -164,7 +162,6 @@ export interface AssignShiftRequest {
   employeeId: number
   customerId: number
   shiftDate: string
-  templateId?: number | null
   startTime?: string
   endTime?: string
   shiftType: ShiftType
@@ -173,7 +170,6 @@ export interface AssignShiftRequest {
 export interface RecurringShiftRequest {
   employeeId?: number | null
   customerId: number
-  templateId?: number | null
   startDate: string
   endDate: string
   daysOfWeek: ('MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY' | 'SUNDAY')[]
@@ -184,20 +180,33 @@ export interface RecurringShiftRequest {
 }
 
 export interface RecurringShiftResponse {
-  created: number
-  skipped: number
-  createdShiftIds: number[]
-  conflicts: ShiftConflictResponse[]
+  totalCreated: number
+  shifts: ShiftSchema[]
 }
 
-export interface CopyWeekRequest {
-  sourceWeek: string // YYYY-Www
-  targetWeek: string // YYYY-Www
+export interface AdminUpdateAttendanceRequest {
+  checkInTime?: string | null
+  checkOutTime?: string | null
+  status?: string | null
+  note?: string | null
 }
 
-export interface CopyWeekResponse {
-  copied: number
-  skipped: number
-  conflicts: ShiftConflictResponse[]
+export interface WorkScheduleRequest {
+  employeeId: number
+  customerId: number
+  shiftDate: string
+  startTime: string
+  endTime: string
+  shiftType: ShiftType
+}
+
+export interface WorkScheduleResponse {
+  id: number
+  employeeId: number
+  customerId: number
+  shiftDate: string
+  startTime: string
+  endTime: string
+  status: string
 }
 

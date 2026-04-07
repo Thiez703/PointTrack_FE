@@ -3,15 +3,21 @@ import { AuthService } from '@/app/services/auth.service'
 import { useEffect } from 'react'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { tokenUtils } from '@/lib/tokenUtils'
+import { usePathname } from 'next/navigation'
 
 export function useCurrentUser() {
   const { setUserDetail, setAccessAndRefreshToken } = useAuthStore()
+  const pathname = usePathname()
+
+  // Danh sách các trang không cần check token ngay lập tức
+  const isAuthPage = ['/login', '/signup', '/reset-password'].some(p => pathname.startsWith(p))
 
   const { data: token, isLoading: isLoadingToken } = useQuery({
     queryKey: ['tokenNext'],
     queryFn: () => AuthService.meTokenNext(),
     staleTime: Infinity,
     retry: false,
+    enabled: !isAuthPage, // Chỉ gọi khi không phải trang auth
   })
 
   const { data, isLoading } = useQuery({

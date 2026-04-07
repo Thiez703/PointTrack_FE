@@ -15,7 +15,7 @@ import { toast } from "sonner";
 import { AttendanceService } from "@/app/services/attendance.service";
 import { SchedulingService } from "@/app/services/scheduling.service";
 import type { CheckInResponse, CheckOutResponse, ShiftSchema } from "@/app/types/attendance.schema";
-import { format, isAfter } from "date-fns";
+import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 import { useAuthStore } from "@/stores/useAuthStore";
 import {
@@ -27,29 +27,81 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { CheckinMap } from "@/components/maps/CheckinMap";
+// CheckinMap removed
+
+const LATE_TOLERANCE_MINUTES = 15; // Phút cho phép trễ
+const UPCOMING_WINDOW_MINUTES = 30; // Phút hiển thị sắp bắt đầu
+const ALLOWED_RADIUS_METERS = 200; // Bán kính cho phép mặc định (nếu BE không trả về)
+
+/**
+ * Công thức Haversine tính khoảng cách giữa 2 điểm GPS (mét)
+ */
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000; // Bán kính Trái Đất (mét)
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c);
+}
+
+/**
+ * Tính số phút chênh lệch giữa 2 mốc thời gian HH:mm
+ * Handle được ca qua đêm
+ */
+function getMinutesDiff(now: Date, targetTimeStr: string, baseDateStr: string): number {
+  const [h, m] = targetTimeStr.split(":").map(Number);
+  const targetDate = new Date(baseDateStr);
+  targetDate.setHours(h, m, 0, 0);
+
+  // Nếu là ca qua đêm và hiện tại đã qua nửa đêm (ví dụ ca 22:00 - 02:00, giờ là 01:00)
+  // Nhưng baseDateStr vẫn là ngày hôm qua. logic này cần cẩn thận.
+  // Tuy nhiên ShiftSchema có shiftDate cố định.
+  
+  return (now.getTime() - targetDate.getTime()) / 60000;
+}
+
+type ExtendedShiftStatus =
+  | "SCHEDULED"      // Sẵn sàng check-in (CONFIRMED, ASSIGNED, PUBLISHED)
+  | "IN_PROGRESS"    // Đang làm việc (đã check-in)
+  | "COMPLETED"      // Đã hoàn thành
+  | "ABSENT"         // Vắng mặt (MISSED)
+  | "CANCELLED";     // Đã hủy
+
+function getShiftStatus(
+  shift: ShiftSchema
+): ExtendedShiftStatus {
+  const status = shift.status?.toUpperCase();
+  
+  if (status === "COMPLETED") return "COMPLETED";
+  if (status === "CANCELLED") return "CANCELLED";
+  if (status === "MISSED") return "ABSENT";
+  if (status === "IN_PROGRESS" || status === "MISSING_OUT") return "IN_PROGRESS";
+  
+  // Mặc định cho các trạng thái còn lại (CONFIRMED, ASSIGNED, v.v.)
+  return "SCHEDULED";
+}
 
 // ── Status badge ─────────────────────────────────────────────
 
 const SHIFT_STATUS_CONFIG: Record<
-  string,
+  ExtendedShiftStatus,
   { label: string; cls: string; pulse?: boolean }
 > = {
-  SCHEDULED:   { label: "Chưa bắt đầu",    cls: "bg-gray-100 text-gray-600" },
-  ASSIGNED:    { label: "Chưa bắt đầu",    cls: "bg-gray-100 text-gray-600" },
-  CONFIRMED:   { label: "Chưa bắt đầu",    cls: "bg-gray-100 text-gray-600" },
-  DRAFT:       { label: "Chờ xử lý",       cls: "bg-gray-100 text-gray-400" },
-  PUBLISHED:   { label: "Chưa bắt đầu",    cls: "bg-gray-100 text-gray-600" },
-  IN_PROGRESS: { label: "Đang làm việc",   cls: "bg-green-100 text-green-700", pulse: true },
-  COMPLETED:   { label: "✅ Hoàn thành",   cls: "bg-blue-100 text-blue-700" },
-  MISSING_OUT: { label: "Thiếu check-out", cls: "bg-orange-100 text-orange-700" },
-  MISSED:      { label: "Vắng mặt",        cls: "bg-red-100 text-red-700" },
-  ABSENT:      { label: "Vắng mặt",        cls: "bg-red-100 text-red-700" },
-  CANCELLED:   { label: "Đã hủy",          cls: "bg-gray-100 text-gray-400" },
+  SCHEDULED:        { label: "Sẵn sàng",        cls: "bg-orange-50 text-orange-600" },
+  IN_PROGRESS:      { label: "Đang làm việc",   cls: "bg-green-100 text-green-700", pulse: true },
+  COMPLETED:        { label: "✅ Hoàn thành",   cls: "bg-blue-100 text-blue-700" },
+  ABSENT:           { label: "Vắng mặt",        cls: "bg-red-50 text-red-400" },
+  CANCELLED:        { label: "Đã hủy",          cls: "bg-gray-100 text-gray-400" },
 };
 
-function ShiftStatusBadge({ status }: { status: string }) {
-  const cfg = SHIFT_STATUS_CONFIG[status?.toUpperCase()] ?? {
+function ShiftStatusBadge({ status }: { status: ExtendedShiftStatus }) {
+  const cfg = SHIFT_STATUS_CONFIG[status] ?? {
     label: status,
     cls: "bg-gray-100 text-gray-500",
   };
@@ -72,32 +124,47 @@ function ShiftCard({
   shift,
   onCheckIn,
   onCheckOut,
-  todayStr,
+  currentTime,
 }: {
   shift: ShiftSchema;
   onCheckIn: () => void;
   onCheckOut: () => void;
-  todayStr: string;
+  currentTime: Date;
 }) {
-  const status = shift.status?.toUpperCase() ?? "";
-  const isPast = shift.shiftDate < todayStr;
-  // Allow overnight shifts: yesterday's ASSIGNED shifts can still be checked in
-  const yesterdayDate = new Date(todayStr);
-  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-  const yesterdayStr = yesterdayDate.toISOString().slice(0, 10);
-  const isOvernightAssigned = isPast && status === "ASSIGNED" && shift.shiftDate === yesterdayStr;
-  const isCheckable = ["SCHEDULED", "ASSIGNED", "CONFIRMED", "PUBLISHED"].includes(status) && (!isPast || isOvernightAssigned);
-  const isInProgress = status === "IN_PROGRESS";
-  const isCompleted = status === "COMPLETED" || !!shift.checkOutTime;
+  const status = getShiftStatus(shift);
+  
+  const isCheckInVisible = status === "SCHEDULED";
+  const isCheckOutVisible = status === "IN_PROGRESS";
+  const isCompleted = status === "COMPLETED";
+  const isAbsent = status === "ABSENT";
+  const isCancelled = status === "CANCELLED";
+
+  // Countdown logic for CHECK_OUT window (optional helper)
+  const getCountdownText = () => {
+    if (status === "IN_PROGRESS") {
+      const [eh, em] = shift.endTime.split(":").map(Number);
+      const end = new Date(shift.shiftDate);
+      end.setHours(eh, em, 0, 0);
+      let diff = Math.ceil((end.getTime() - currentTime.getTime()) / 60000);
+      // Xử lý ca qua đêm sơ bộ
+      if (diff < -600) diff += 24 * 60; 
+      if (diff > 0 && diff <= 30) return `Kết thúc sau ${diff} phút`;
+    }
+    return null;
+  };
+
+  const countdownText = getCountdownText();
 
   return (
     <div
       className={cn(
-        "bg-white rounded-2xl p-4 border shadow-sm",
-        isInProgress
-          ? "border-green-200 shadow-green-50"
+        "bg-white rounded-2xl p-4 border shadow-sm transition-all",
+        status === "IN_PROGRESS"
+          ? "border-green-200 shadow-green-50 bg-green-50/10"
           : isCompleted
           ? "border-blue-100"
+          : isAbsent || isCancelled
+          ? "border-red-100 bg-red-50/5"
           : "border-gray-100"
       )}
     >
@@ -106,10 +173,12 @@ function ShiftCard({
         <div
           className={cn(
             "w-12 h-12 rounded-xl flex flex-col items-center justify-center flex-shrink-0",
-            isInProgress
+            status === "IN_PROGRESS"
               ? "bg-green-50 text-green-600"
               : isCompleted
               ? "bg-blue-50 text-blue-600"
+              : isAbsent || isCancelled
+              ? "bg-red-50 text-red-400"
               : "bg-orange-50 text-orange-600"
           )}
         >
@@ -127,9 +196,16 @@ function ShiftCard({
           <p className="text-[11px] text-gray-500 font-medium truncate">
             {shift.customerAddress}
           </p>
-          <p className="text-[10px] text-gray-400 font-medium mt-0.5">
-            {shift.startTime.slice(0, 5)} – {shift.endTime.slice(0, 5)}
-          </p>
+          <div className="flex items-center justify-between mt-0.5">
+            <p className="text-[10px] text-gray-400 font-medium">
+              {shift.startTime.slice(0, 5)} – {shift.endTime.slice(0, 5)}
+            </p>
+            {countdownText && (
+              <span className="text-[9px] font-bold text-orange-500 uppercase animate-pulse">
+                {countdownText}
+              </span>
+            )}
+          </div>
           {shift.notes && (
             <p className="text-[10px] text-gray-400 italic mt-0.5 truncate">{shift.notes}</p>
           )}
@@ -139,24 +215,28 @@ function ShiftCard({
       {/* Action row */}
       <div className="mt-3 pt-3 border-t border-gray-50">
         {isCompleted ? (
-          <p className="text-center text-sm font-black text-blue-600">Đã hoàn thành ca</p>
-        ) : isInProgress ? (
+          <p className="text-center text-sm font-black text-blue-600">✅ Đã hoàn thành ca</p>
+        ) : isAbsent ? (
+          <p className="text-center text-sm font-black text-red-500 uppercase tracking-widest">Vắng mặt</p>
+        ) : isCancelled ? (
+          <p className="text-center text-sm font-black text-gray-400 uppercase tracking-widest">Đã hủy</p>
+        ) : isCheckOutVisible ? (
           <Button
             onClick={onCheckOut}
-            className="w-full h-11 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-black text-sm shadow-lg shadow-orange-100"
+            className="w-full h-11 rounded-xl bg-green-500 hover:bg-green-600 text-white font-black text-sm shadow-lg shadow-green-100"
           >
             CHECK-OUT
           </Button>
-        ) : isCheckable ? (
+        ) : isCheckInVisible ? (
           <Button
             onClick={onCheckIn}
-            className="w-full h-11 rounded-xl bg-green-500 hover:bg-green-600 text-white font-black text-sm shadow-lg shadow-green-100"
+            className="w-full h-11 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-black text-sm shadow-lg shadow-orange-100"
           >
             CHECK-IN
           </Button>
         ) : (
           <p className="text-center text-xs font-bold text-gray-400 uppercase tracking-widest">
-            {SHIFT_STATUS_CONFIG[status]?.label ?? status}
+            KHÔNG THỂ THỰC HIỆN
           </p>
         )}
       </div>
@@ -208,25 +288,21 @@ export default function CheckinPage() {
     setGps(null);
     setGpsError(null);
     setGpsLoading(true);
-    setCurrentDistance(null);
   };
 
   const closeAction = () => {
     setActionShift(null);
     clearPhoto();
-    setGpsOutOfRangeMessage(null);
     setIsLateDialogOpen(false);
     setIsCheckOutLateDialogOpen(false);
   };
 
   // GPS
-  const [gps, setGps] = useState<{ lat: number; lng: number } | null>(null);
+  const [gps, setGps] = useState<{ lat: number; lng: number; accuracy?: number } | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [gpsLoading, setGpsLoading] = useState(false);
   const [locatingForAction, setLocatingForAction] = useState<ActionType | null>(null);
-  const [gpsOutOfRangeMessage, setGpsOutOfRangeMessage] = useState<string | null>(null);
-  const [currentDistance, setCurrentDistance] = useState<number | null>(null);
-  const pendingGpsRef = useRef<{ lat: number; lng: number } | null>(null);
+  const pendingGpsRef = useRef<{ lat: number; lng: number; accuracy?: number } | null>(null);
 
   // Get initial GPS when action sheet opens
   useEffect(() => {
@@ -238,7 +314,11 @@ export default function CheckinPage() {
     }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        const coords = { 
+          lat: pos.coords.latitude, 
+          lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy 
+        };
         setGps(coords);
         setGpsLoading(false);
       },
@@ -251,7 +331,7 @@ export default function CheckinPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [actionShift?.id]);
 
-  const acquireGps = (): Promise<{ lat: number; lng: number }> =>
+  const acquireGps = (): Promise<{ lat: number; lng: number; accuracy?: number }> =>
     new Promise((resolve, reject) => {
       if (!navigator.geolocation) {
         reject(new Error("no_gps"));
@@ -259,13 +339,17 @@ export default function CheckinPage() {
       }
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          const coords = { 
+            lat: pos.coords.latitude, 
+            lng: pos.coords.longitude,
+            accuracy: pos.coords.accuracy 
+          };
           setGps(coords);
           pendingGpsRef.current = coords;
           resolve(coords);
         },
         () => reject(new Error("gps_denied")),
-        { enableHighAccuracy: true, timeout: 10_000 }
+        { enableHighAccuracy: true, timeout: 15_000, maximumAge: 0 }
       );
     });
 
@@ -315,19 +399,20 @@ export default function CheckinPage() {
 
   // ── Submit handlers ──────────────────────────────────────────
 
-  const handleCheckIn = async (reason?: string, coords?: { lat: number; lng: number }) => {
+  const handleCheckIn = async (reason?: string, coords?: { lat: number; lng: number } | null) => {
     if (!actionShift || !photoFile) return;
     setIsLateDialogOpen(false);
     setIsSubmitting(true);
-    const { lat, lng } = coords ?? pendingGpsRef.current ?? gps!;
+    const lat = coords?.lat ?? pendingGpsRef.current?.lat ?? gps?.lat ?? null;
+    const lng = coords?.lng ?? pendingGpsRef.current?.lng ?? gps?.lng ?? null;
     try {
       const res = await AttendanceService.checkIn({
         workScheduleId: actionShift.id,
-        lat,
-        lng,
+        latitude: lat,
+        longitude: lng,
         photo: photoFile,
         note: reason,
-        capturedAt: new Date().toISOString(),
+        capturedAt: format(new Date(), "yyyy-MM-dd'T'HH:mm:ss"),
       });
       checkInResultRef.current = res.data;
       setCheckInTimestamp(new Date());
@@ -336,48 +421,52 @@ export default function CheckinPage() {
       closeAction();
       refetchShifts();
     } catch (err: any) {
-      if (err.errorCode === "GPS_OUT_OF_RANGE") {
-        setGpsOutOfRangeMessage(err.message || "Vị trí nằm ngoài phạm vi cho phép (50m).");
-      } else {
-        toast.error(err.message || "Check-in thất bại");
-      }
+      toast.error(err.message || "Check-in thất bại");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleCheckOut = async (reason?: string, coords?: { lat: number; lng: number }) => {
-    if (!actionShift || !photoFile) return;
+  const handleCheckOut = async (reason?: string, coords?: { lat: number; lng: number } | null) => {
+    if (!actionShift || !photoFile) {
+      toast.error("Vui lòng chụp ảnh selfie trước khi check-out");
+      return;
+    }
     const attendanceRecordId =
       checkInResultRef.current?.attendanceRecordId ??
-      (actionShift as any).attendanceRecordId;
+      actionShift.attendanceRecordId;
     if (!attendanceRecordId) {
       toast.error("Không tìm thấy ID chấm công. Vui lòng liên hệ admin.");
       return;
     }
     setIsCheckOutLateDialogOpen(false);
     setIsSubmitting(true);
-    const { lat, lng } = coords ?? pendingGpsRef.current ?? gps!;
+    const lat = coords?.lat ?? pendingGpsRef.current?.lat ?? gps?.lat ?? null;
+    const lng = coords?.lng ?? pendingGpsRef.current?.lng ?? gps?.lng ?? null;
     try {
-      const checkOutRes = await AttendanceService.checkOut({
-        attendanceRecordId,
-        lat,
-        lng,
-        photo: photoFile,
-        checkOutReason: reason,
-      });
+      const formData = new FormData();
+      formData.append('attendanceRecordId', String(attendanceRecordId));
+      formData.append('latitude', String(lat));
+      formData.append('longitude', String(lng));
+      formData.append('photo', photoFile);
+      formData.append('capturedAt', format(new Date(), "yyyy-MM-dd'T'HH:mm:ss"));
+      if (reason) {
+        formData.append('checkOutReason', reason);
+      }
+
+      const checkOutRes = await AttendanceService.postCheckout(formData);
+      
       checkInResultRef.current = null;
       setCheckInTimestamp(null);
       clearPhoto();
       closeAction();
       refetchShifts();
       setCheckOutResult(checkOutRes.data);
-    } catch (err: any) {
-      if (err.errorCode === "GPS_OUT_OF_RANGE") {
-        setGpsOutOfRangeMessage(err.message || "Vị trí nằm ngoài phạm vi cho phép (50m).");
-      } else {
-        toast.error(err.message || "Check-out thất bại");
+      if (checkOutRes.message) {
+        toast.success(checkOutRes.message);
       }
+    } catch (err: any) {
+      toast.error(err.message || "Check-out thất bại");
     } finally {
       setIsSubmitting(false);
     }
@@ -389,22 +478,35 @@ export default function CheckinPage() {
       return;
     }
 
-    let freshCoords: { lat: number; lng: number };
+    setLocatingForAction(actionType);
+    let freshCoords;
     try {
-      setLocatingForAction(actionType);
       freshCoords = await acquireGps();
-    } catch {
-      toast.error("Vui lòng bật GPS để chấm công");
-      return;
-    } finally {
+    } catch (e) {
+      toast.error("Không thể lấy vị trí GPS chính xác. Vui lòng thử lại.");
       setLocatingForAction(null);
+      return;
+    }
+    setLocatingForAction(null);
+
+    // Verify distance Haversine
+    const distance = calculateDistance(
+      freshCoords.lat, 
+      freshCoords.lng, 
+      actionShift.customerLatitude, 
+      actionShift.customerLongitude
+    );
+
+    if (distance > ALLOWED_RADIUS_METERS) {
+      toast.error(`Bạn đang ở quá xa địa điểm (${distance}m). Vui lòng đến gần hơn.`);
+      return;
     }
 
     if (actionType === "checkin") {
-      const [h, m] = actionShift.startTime.split(":").map(Number);
-      const shiftStart = new Date();
-      shiftStart.setHours(h, m, 0, 0);
-      if (isAfter(currentTime, shiftStart)) {
+      const diffFromStart = getMinutesDiff(currentTime, actionShift.startTime, actionShift.shiftDate);
+      
+      // Chỉ báo đi trễ nếu quá LATE_TOLERANCE_MINUTES (15 phút)
+      if (diffFromStart > LATE_TOLERANCE_MINUTES) {
         setIsLateDialogOpen(true);
       } else {
         handleCheckIn(undefined, freshCoords);
@@ -414,10 +516,11 @@ export default function CheckinPage() {
         toast.error(`Vui lòng chờ ${countdown} giây để có thể Check-out`);
         return;
       }
-      const [h, m] = actionShift.endTime.split(":").map(Number);
-      const shiftEnd = new Date(actionShift.shiftDate);
-      shiftEnd.setHours(h, m, 0, 0);
-      if (isAfter(currentTime, new Date(shiftEnd.getTime() + 30 * 60_000))) {
+      
+      const diffFromEnd = getMinutesDiff(currentTime, actionShift.endTime, actionShift.shiftDate);
+      
+      // Check-out muộn nếu quá 30 phút sau giờ kết thúc
+      if (diffFromEnd > 30) {
         setIsCheckOutLateDialogOpen(true);
       } else {
         handleCheckOut(undefined, freshCoords);
@@ -511,12 +614,11 @@ export default function CheckinPage() {
 
         {/* Shift cards */}
         {(() => {
-          const todayStr = format(currentTime, "yyyy-MM-dd");
           return todayShifts.map((shift) => (
             <ShiftCard
               key={shift.id}
               shift={shift}
-              todayStr={todayStr}
+              currentTime={currentTime}
               onCheckIn={() => openAction(shift, "checkin")}
               onCheckOut={() => openAction(shift, "checkout")}
             />
@@ -568,57 +670,72 @@ export default function CheckinPage() {
           </div>
 
           <div className="p-5 space-y-4">
-            {/* Map */}
-            {actionShift && (
-              <div className="rounded-2xl overflow-hidden">
-                <CheckinMap
-                  customerLat={actionShift.customerLatitude}
-                  customerLng={actionShift.customerLongitude}
-                  employeeLat={gps?.lat ?? null}
-                  employeeLng={gps?.lng ?? null}
-                  onDistanceChange={setCurrentDistance}
-                />
-              </div>
-            )}
+            {/* Map removed per requirement */}
 
             {/* GPS status */}
             <div
               className={cn(
-                "flex items-center gap-3 p-3 rounded-xl",
+                "flex flex-col gap-2 p-3 rounded-xl",
                 gpsLoading ? "bg-gray-50" : gps ? "bg-green-50" : "bg-red-50"
               )}
             >
-              <Navigation
-                className={cn(
-                  "w-4 h-4 flex-shrink-0",
-                  gps ? "text-green-600" : "text-gray-400"
-                )}
-              />
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">
-                  Vị trí GPS
-                </p>
-                <p className="text-xs font-bold text-gray-700 truncate">
-                  {gpsLoading
-                    ? "Đang xác định..."
-                    : gps
-                    ? `${gps.lat.toFixed(4)}, ${gps.lng.toFixed(4)}`
-                    : gpsError ?? "Không khả dụng"}
-                </p>
-                {currentDistance !== null && (
-                  <p
-                    className={cn(
-                      "text-[10px] font-bold mt-0.5",
-                      currentDistance <= 50 ? "text-green-600" : "text-red-500"
-                    )}
-                  >
-                    Cách {currentDistance}m{" "}
-                    {currentDistance <= 50 ? "✓ Trong phạm vi" : "✗ Ngoài phạm vi"}
+              <div className="flex items-center gap-3">
+                <Navigation
+                  className={cn(
+                    "w-4 h-4 flex-shrink-0",
+                    gps ? "text-green-600" : "text-gray-400"
+                  )}
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">
+                    Vị trí GPS
                   </p>
+                  <p className="text-xs font-bold text-gray-700 truncate">
+                    {gpsLoading
+                      ? "Đang xác định..."
+                      : gps
+                      ? `${gps.lat.toFixed(4)}, ${gps.lng.toFixed(4)}`
+                      : gpsError ?? "Không khả dụng"}
+                  </p>
+                </div>
+                {gps && (
+                  <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
                 )}
               </div>
-              {gps && (
-                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse flex-shrink-0" />
+
+              {/* Debug GPS Info (Dev only) */}
+              {process.env.NODE_ENV === 'development' && gps && actionShift && (
+                <div className="mt-1 pt-2 border-t border-green-200/50 text-[9px] text-gray-400 font-mono space-y-0.5">
+                  <div className="flex justify-between">
+                    <span>🎯 Độ chính xác:</span>
+                    <span className={cn(gps.accuracy && gps.accuracy > 100 ? "text-red-500 font-bold" : "text-gray-600")}>
+                      ±{gps.accuracy ? Math.round(gps.accuracy) : "?"}m
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>📏 Khoảng cách:</span>
+                    <span className="text-gray-600">
+                      {calculateDistance(gps.lat, gps.lng, actionShift.customerLatitude, actionShift.customerLongitude)}m
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>⭕ Bán kính cho phép:</span>
+                    <span className="text-gray-600">{ALLOWED_RADIUS_METERS}m</span>
+                  </div>
+                  <div className="flex justify-between font-bold">
+                    <span>Trạng thái:</span>
+                    {calculateDistance(gps.lat, gps.lng, actionShift.customerLatitude, actionShift.customerLongitude) <= ALLOWED_RADIUS_METERS 
+                      ? <span className="text-green-600">✅ TRONG VÙNG</span>
+                      : <span className="text-red-500">❌ NGOÀI VÙNG</span>
+                    }
+                  </div>
+                </div>
+              )}
+              
+              {gps?.accuracy && gps.accuracy > 100 && (
+                <p className="text-[9px] font-bold text-red-500 uppercase leading-tight mt-1">
+                  ⚠️ GPS chưa chính xác (±{Math.round(gps.accuracy)}m). Vui lòng đợi hoặc di chuyển ra chỗ thoáng.
+                </p>
               )}
             </div>
 
@@ -837,38 +954,6 @@ export default function CheckinPage() {
               className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black shadow-lg shadow-blue-100"
             >
               Đóng
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── GPS out-of-range modal (non-dismissible) ── */}
-      <Dialog open={!!gpsOutOfRangeMessage} onOpenChange={() => {}}>
-        <DialogContent
-          className="sm:max-w-[400px] rounded-[32px] p-0 border-none overflow-hidden"
-          onPointerDownOutside={(e) => e.preventDefault()}
-          onEscapeKeyDown={(e) => e.preventDefault()}
-        >
-          <div className="bg-red-600 p-8 text-white text-center">
-            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
-              <AlertCircle className="w-8 h-8" />
-            </div>
-            <DialogTitle className="text-xl font-black uppercase tracking-tight">
-              Ngoài phạm vi GPS
-            </DialogTitle>
-            <DialogDescription className="text-red-100 text-sm mt-3 font-medium leading-relaxed">
-              {gpsOutOfRangeMessage}
-            </DialogDescription>
-          </div>
-          <div className="p-6">
-            <p className="text-xs text-gray-500 text-center mb-4 font-medium">
-              Di chuyển lại gần địa điểm khách hàng (trong vòng 50m) rồi thử lại.
-            </p>
-            <Button
-              onClick={() => setGpsOutOfRangeMessage(null)}
-              className="w-full h-12 bg-red-600 hover:bg-red-700 text-white rounded-xl font-black shadow-lg shadow-red-100"
-            >
-              Thử lại
             </Button>
           </div>
         </DialogContent>

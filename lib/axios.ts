@@ -2,11 +2,19 @@ import axios from 'axios'
 import { tokenUtils } from './tokenUtils'
 
 // --- Instance 1: Direct Backend (Java Spring Boot) ---
+const getBaseURL = () => {
+  // Ưu tiên 8080 theo yêu cầu fix
+  const url = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
+  // Normalize: Strip trailing /api/v1 or /api to ensure host-only baseURL
+  return url.replace(/\/api\/v1\/?$/, '').replace(/\/api\/?$/, '')
+}
+
 export const apiJava = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1/',
+  baseURL: getBaseURL(),
   timeout: 15000,
   headers: { 'Content-Type': 'application/json' }
 })
+
 
 // --- Instance 2: Next.js API Proxy ---
 export const apiNext = axios.create({
@@ -60,7 +68,10 @@ apiJava.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config
 
-    if (error.response?.status === 401 && !originalRequest._retry && typeof window !== 'undefined') {
+    // BƯỚC 5: Tránh loop vô tận khi login/refresh bị 401
+    const isAuthPath = originalRequest.url?.includes('/auth/login') || originalRequest.url?.includes('/auth/refresh')
+
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthPath && typeof window !== 'undefined') {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({

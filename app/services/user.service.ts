@@ -1,72 +1,72 @@
 import { apiJava } from '@/lib/axios'
-import { UserType, SignupFormValues, ProfileFormValues, AvatarImage, ChangePasswordFormValues, AddressFormValues } from '@/app/types/user.schema'
+import { API_ENDPOINTS } from '@/lib/endpoints'
+import { UserType, SignupFormValues, ProfileFormValues, AvatarImage, ChangePasswordFormValues, AddressFormValues, EmployeeProfileResponse } from '@/app/types/user.schema'
 type EditProfileFormValues = ProfileFormValues
 import { Client } from '@stomp/stompjs'
 
 export class UserService {
-  private static readonly PREFIX = 'user'
   static async signup(userData: SignupFormValues): Promise<UserType> {
-    const response = await apiJava.post<UserType>(`${this.PREFIX}/signup`, userData)
+    const response = await apiJava.post<UserType>(API_ENDPOINTS.USER.SIGNUP, userData)
     return response.data
   }
 
   static async getProfile(userId: number): Promise<UserType> {
-    const response = await apiJava.get<UserType>(`${this.PREFIX}/profile/${userId}`)
+    const response = await apiJava.get<UserType>(API_ENDPOINTS.USER.PROFILE(userId))
     return response.data
   }
 
   static async saveEdit(userData: ProfileFormValues): Promise<UserType> {
-    const response = await apiJava.post<UserType>(`${this.PREFIX}/saveEdit`, userData)
+    const response = await apiJava.post<UserType>(API_ENDPOINTS.USER.SAVE_EDIT, userData)
     return response.data
   }
 
   static async updateProfile(userData: EditProfileFormValues): Promise<UserType> {
-    const response = await apiJava.post<UserType>(`${this.PREFIX}/edit-profile`, userData)
+    const response = await apiJava.post<UserType>(API_ENDPOINTS.USER.EDIT_PROFILE, userData)
     return response.data
   }
 
   static async changePassword(passwordData: ChangePasswordFormValues): Promise<void> {
-    const response = await apiJava.post<void>(`${this.PREFIX}/change-password`, passwordData)
+    const response = await apiJava.post<void>(API_ENDPOINTS.USER.CHANGE_PASSWORD, passwordData)
     return response.data
   }
 
   static async getAddresses(): Promise<AddressFormValues[]> {
-    const response = await apiJava.get<AddressFormValues[]>(`${this.PREFIX}/address`)
+    const response = await apiJava.get<AddressFormValues[]>(API_ENDPOINTS.USER.ADDRESS)
     return response.data
   }
 
   static async addAddress(addressData: AddressFormValues): Promise<AddressFormValues> {
-    const response = await apiJava.post<AddressFormValues>(`${this.PREFIX}/address/add`, addressData)
+    const response = await apiJava.post<AddressFormValues>(API_ENDPOINTS.USER.ADD_ADDRESS, addressData)
     return response.data
   }
 
   static async updateAddress(id: number, addressData: AddressFormValues): Promise<AddressFormValues> {
-    const response = await apiJava.put<AddressFormValues>(`${this.PREFIX}/address/${id}`, addressData)
+    const response = await apiJava.put<AddressFormValues>(API_ENDPOINTS.USER.UPDATE_ADDRESS(id), addressData)
     return response.data
   }
 
   static async deleteAddress(id: number): Promise<void> {
-    await apiJava.delete<void>(`${this.PREFIX}/address/${id}`)
+    await apiJava.delete<void>(API_ENDPOINTS.USER.DELETE_ADDRESS(id))
   }
 
   static async setDefaultAddress(id: number): Promise<void> {
-    await apiJava.post<void>(`${this.PREFIX}/address/${id}/set-default`)
+    await apiJava.post<void>(API_ENDPOINTS.USER.SET_DEFAULT_ADDRESS(id))
   }
 
   static async getAll(): Promise<UserType[]> {
-    const response = await apiJava.get<UserType[]>(`${this.PREFIX}/getAll`)
+    const response = await apiJava.get<UserType[]>(API_ENDPOINTS.USER.GET_ALL)
     return response.data
   }
 
   static async uploadAvatar(body: FormData): Promise<AvatarImage> {
-    const response = await apiJava.post<AvatarImage>(`${this.PREFIX}/upload-avatar`, body, {
+    const response = await apiJava.post<AvatarImage>(API_ENDPOINTS.USER.UPLOAD_AVATAR, body, {
       headers: { 'Content-Type': undefined }
     })
     return response.data
   }
 
   static async getMe(): Promise<EmployeeProfileResponse> {
-    const response = await apiJava.get<EmployeeProfileResponse>('employees/me')
+    const response = await apiJava.get<EmployeeProfileResponse>(API_ENDPOINTS.EMPLOYEES.ME)
     return response.data
   }
 

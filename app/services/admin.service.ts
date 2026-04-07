@@ -1,12 +1,11 @@
 import { apiJava } from "@/lib/axios";
+import { API_ENDPOINTS } from "@/lib/endpoints";
 import {
   ApiResponse,
   Employee,
   PersonnelStats,
   EmployeeSummaryStats,
   CreateEmployeeRequest,
-  ShiftTemplate,
-  ShiftTemplateRequest,
   AttendanceRecord,
   ScheduleRequest,
   SystemSettings,
@@ -22,96 +21,80 @@ export class AdminService {
     search?: string;
     department?: string;
   }): Promise<ApiResponse<{ content: Employee[]; totalPages: number }>> {
-    const response = await apiJava.get("employees", { params });
+    const response = await apiJava.get(API_ENDPOINTS.EMPLOYEES.LIST, { params });
     return response.data;
   }
 
   static async getPersonnelStats(): Promise<ApiResponse<PersonnelStats>> {
-    const response = await apiJava.get("employees/statistics");
+    const response = await apiJava.get(API_ENDPOINTS.EMPLOYEES.STATISTICS);
     return response.data;
   }
 
   static async getPersonnelStatsAlt(): Promise<ApiResponse<EmployeeSummaryStats>> {
-    const response = await apiJava.get("employees/stats");
+    const response = await apiJava.get(API_ENDPOINTS.EMPLOYEES.STATS);
     return response.data;
   }
 
   static async createEmployee(data: CreateEmployeeRequest): Promise<ApiResponse<Employee>> {
-    const response = await apiJava.post("employees", data);
+    const response = await apiJava.post(API_ENDPOINTS.EMPLOYEES.CREATE, data);
     return response.data;
   }
 
   static async deleteEmployee(id: number): Promise<ApiResponse<void>> {
-    const response = await apiJava.delete(`employees/${id}`);
+    const response = await apiJava.delete(API_ENDPOINTS.EMPLOYEES.DELETE(id));
     return response.data;
   }
 
   static async updateEmployee(id: number, data: Partial<CreateEmployeeRequest>): Promise<ApiResponse<Employee>> {
-    const response = await apiJava.put(`employees/${id}`, data);
+    const response = await apiJava.put(API_ENDPOINTS.EMPLOYEES.UPDATE(id), data);
     return response.data;
   }
 
   static async updateEmployeeStatus(id: number, status: "ACTIVE" | "INACTIVE" | "ON_LEAVE"): Promise<ApiResponse<void>> {
-    const response = await apiJava.patch(`employees/${id}/status`, { status });
+    const response = await apiJava.patch(API_ENDPOINTS.EMPLOYEES.UPDATE_STATUS(id), { status });
     return response.data;
   }
 
   static async assignSalaryLevel(employeeId: number, salaryLevelId: number): Promise<ApiResponse<void>> {
-    const response = await apiJava.patch(`employees/${employeeId}/salary-level`, { salaryLevelId });
-    return response.data;
-  }
-
-  // --- Shift Template Management ---
-  static async createShiftTemplate(data: ShiftTemplateRequest): Promise<ApiResponse<ShiftTemplate>> {
-    const response = await apiJava.post("shift-templates", data);
-    return response.data;
-  }
-
-  static async updateShiftTemplate(id: number, data: ShiftTemplateRequest): Promise<ApiResponse<ShiftTemplate>> {
-    const response = await apiJava.put(`shift-templates/${id}`, data);
-    return response.data;
-  }
-
-  static async deleteShiftTemplate(id: number): Promise<ApiResponse<void>> {
-    const response = await apiJava.delete(`shift-templates/${id}`);
+    const response = await apiJava.patch(API_ENDPOINTS.EMPLOYEES.UPDATE_SALARY_LEVEL(employeeId), { salaryLevelId });
     return response.data;
   }
 
   // --- Attendance & Scheduling ---
   static async scheduleWork(data: ScheduleRequest): Promise<ApiResponse<void>> {
-    const response = await apiJava.post("attendance/schedule/create", data);
+    const response = await apiJava.post(API_ENDPOINTS.ATTENDANCE.SCHEDULE_CREATE, data);
     return response.data;
   }
 
   static async getAttendanceRecords(params?: { startDate?: string; endDate?: string }): Promise<ApiResponse<AttendanceRecord[]>> {
-    const response = await apiJava.get("attendance/records", { params });
+    const response = await apiJava.get(API_ENDPOINTS.ATTENDANCE.RECORDS, { params });
     return response.data;
   }
 
   static async approveExplanation(explanationId: number): Promise<ApiResponse<void>> {
-    const response = await apiJava.put(`attendance/explanations/${explanationId}/approve`);
+    const response = await apiJava.put(API_ENDPOINTS.ATTENDANCE.APPROVE_EXPLANATION(explanationId));
     return response.data;
   }
 
   // --- System Configuration ---
   static async getSettings(): Promise<ApiResponse<SystemSettings>> {
-    const response = await apiJava.get("scheduling/settings");
+    const response = await apiJava.get(API_ENDPOINTS.SCHEDULING_SETTINGS.GET);
     return response.data;
   }
 
   static async updateGracePeriod(data: { gracePeriodMinutes: number }): Promise<ApiResponse<void>> {
-    const response = await apiJava.put("scheduling/settings/grace-period", data);
+    const response = await apiJava.put(API_ENDPOINTS.SCHEDULING_SETTINGS.UPDATE_GRACE_PERIOD, data);
     return response.data;
   }
 
   // --- Salary Level Management ---
   static async getSalaryLevels(): Promise<ApiResponse<SalaryLevel[]>> {
-    const response = await apiJava.get("salary-levels");
+    const response = await apiJava.get(API_ENDPOINTS.SALARY_LEVELS.LIST);
     return response.data;
   }
 
   static async createSalaryLevel(data: SalaryLevelRequest): Promise<ApiResponse<SalaryLevel>> {
-    const response = await apiJava.post("salary-levels", data);
+    const response = await apiJava.post(API_ENDPOINTS.SALARY_LEVELS.CREATE, data);
     return response.data;
   }
 }

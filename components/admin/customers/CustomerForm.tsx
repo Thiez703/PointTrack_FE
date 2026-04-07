@@ -1,16 +1,17 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { MapPin, Loader2, Save } from 'lucide-react'
+import { Loader2, Save, MapPin, CheckCircle2, AlertTriangle, Search } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { customerSchema, CustomerFormValues } from '@/app/validations/customerSchema'
 import { useCreateCustomer, useUpdateCustomer } from '@/hooks/useCustomer'
 import type { Customer } from '@/app/types/customer'
-import type { PickedLocation } from '@/components/maps/LocationPickerMap'
+import { SITE_CONFIG } from '@/lib/Constant'
+import { toast } from 'sonner'
 
-// ✅ Dynamically import map components to avoid "window is not defined" during SSR
+// ✅ Import bản đồ chọn vị trí (Sử dụng Leaflet - Miễn phí)
 const LocationPickerModal = dynamic(
   () => import('@/components/maps/LocationPickerModal').then((mod) => mod.LocationPickerModal),
   { ssr: false }
@@ -20,6 +21,7 @@ const MiniMapPreview = dynamic(
   () => import('@/components/maps/MiniMapPreview').then((mod) => mod.MiniMapPreview),
   { ssr: false, loading: () => <div className="h-32 bg-gray-100 animate-pulse rounded-xl" /> }
 )
+
 import { 
   Form, 
   FormControl, 
@@ -46,8 +48,9 @@ interface CustomerFormProps {
 }
 
 export function CustomerForm({ customer, onSuccess, onCancel }: CustomerFormProps) {
-  const [isMapOpen, setIsMapOpen] = useState(false)
   const isEditMode = !!customer
+  const [isVerifying, setIsVerifying] = useState(false)
+  const [isMapOpen, setIsMapOpen] = useState(false)
 
   // ✅ Dùng hooks thay vì AdminService
   const { mutate: createCustomer, isPending: isCreating } = useCreateCustomer()
@@ -77,17 +80,46 @@ export function CustomerForm({ customer, onSuccess, onCancel }: CustomerFormProp
     }
   })
 
-  const lat = form.watch('latitude')
-  const lng = form.watch('longitude')
-  const address = form.watch('address')
-  const hasLocation = lat !== null && lng !== null
-
-  // ✅ Nhận kết quả từ Google Maps picker
-  const handleLocationConfirm = (location: PickedLocation) => {
+  // ✅ Khi chọn vị trí thủ công từ Bản đồ Leaflet
+  const handleLocationConfirm = (location: any) => {
     form.setValue('address', location.address, { shouldValidate: true })
     form.setValue('latitude', location.lat, { shouldValidate: true })
     form.setValue('longitude', location.lng, { shouldValidate: true })
     setIsMapOpen(false)
+  }
+
+  // ✅ Hàm gọi Geocoding API để gợi ý vị trí từ địa chỉ văn bản
+  const handleVerifyLocation = async () => {
+    const address = form.getValues('address')
+    if (!address || address.length < 5) {
+      toast.error('Vui lòng nhập địa chỉ đầy đủ trước khi kiểm tra')
+      return
+    }
+
+    setIsVerifying(true)
+    try {
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${SITE_CONFIG.googleMapsApiKey}&language=vi`
+      )
+      const data = await response.json()
+
+      if (data.status === 'OK' && data.results.length > 0) {
+        const { lat, lng } = data.results[0].geometry.location
+        const formattedAddress = data.results[0].formatted_address
+        
+        setGeocodeResult({ lat, lng, formattedAddress })
+        form.setValue('latitude', lat)
+        form.setValue('longitude', lng)
+        toast.success('Đã xác định được tọa độ vị trí!')
+      } else {
+        toast.error('Không tìm thấy vị trí này trên bản đồ. Vui lòng kiểm tra lại địa chỉ.')
+        setGeocodeResult(null)
+      }
+    } catch (error) {
+      toast.error('Lỗi kết nối với Google Maps API')
+    } finally {
+      setIsVerifying(false)
+    }
   }
 
   const onSubmit = (values: CustomerFormValues) => {
@@ -101,6 +133,9 @@ export function CustomerForm({ customer, onSuccess, onCancel }: CustomerFormProp
       createCustomer(payload, { onSuccess })
     }
   }
+
+  const lat = form.watch('latitude')
+  const lng = form.watch('longitude')
 
   return (
     <>
@@ -176,47 +211,77 @@ export function CustomerForm({ customer, onSuccess, onCancel }: CustomerFormProp
             />
           </div>
 
-          {/* ✅ REPLACE: text input address → Google Maps picker */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">
-              Vị trí / Địa chỉ <span className="text-red-500">*</span>
-            </label>
+          <div className="space-y-3 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+            <FormField
+              control={form.control}
+              name="address"
+              render={({ field }) => (
+                <FormItem>
+                  <div className="flex items-center justify-between mb-1">
+                    <FormLabel className="font-bold text-gray-700 uppercase text-[11px] tracking-widest">Địa chỉ chi tiết *</FormLabel>
+                    <div className="flex gap-2">
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={handleVerifyLocation}
+                        disabled={isVerifying}
+                        className="h-7 text-[10px] font-black uppercase tracking-tighter text-blue-600 hover:bg-blue-50 rounded-lg"
+                      >
+                        {isVerifying ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Search className="w-3 h-3 mr-1" />}
+                        Tự động tìm
+                      </Button>
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => setIsMapOpen(true)}
+                        className="h-7 text-[10px] font-black uppercase tracking-tighter text-orange-600 hover:bg-orange-100 rounded-lg"
+                      >
+                        <MapPin className="w-3 h-3 mr-1" />
+                        Ghim bản đồ
+                      </Button>
+                    </div>
+                  </div>
+                  <FormControl>
+                    <Input placeholder="Số 1, Đường ABC, Quận 1..." {...field} className="rounded-xl border-gray-200 bg-white focus:ring-orange-500 font-semibold" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-            {!hasLocation ? (
-              <button
-                type="button"
-                onClick={() => setIsMapOpen(true)}
-                className="w-full h-24 border-2 border-dashed border-gray-300 
-                           rounded-lg flex flex-col items-center justify-center 
-                           gap-2 text-gray-400 hover:border-orange-400 
-                           hover:text-orange-500 transition-colors cursor-pointer"
-              >
-                <MapPin className="w-6 h-6" />
-                <span className="text-sm font-medium">
-                  Nhấn để chọn vị trí trên bản đồ
-                </span>
-              </button>
-            ) : (
-              <div className="space-y-2">
-                <MiniMapPreview lat={lat!} lng={lng!} label={address} />
-                <button
-                  type="button"
-                  onClick={() => setIsMapOpen(true)}
-                  className="text-xs text-orange-500 hover:underline 
-                             flex items-center gap-1"
-                >
-                  <MapPin className="w-3 h-3" />
-                  Thay đổi vị trí
-                </button>
-              </div>
-            )}
-
-            {(form.formState.errors.latitude || 
-              form.formState.errors.address) && (
-              <p className="text-sm text-red-500">
-                Vui lòng chọn vị trí trên bản đồ
-              </p>
-            )}
+            {/* Hiển thị vị trí đã chọn (Leaflet Mini Map) */}
+            <div className="mt-2">
+              {lat && lng ? (
+                <div className="space-y-2">
+                   <div className="relative w-full h-[180px] rounded-xl overflow-hidden border border-gray-200 bg-gray-100 shadow-inner">
+                      <MiniMapPreview 
+                        lat={lat} 
+                        lng={lng} 
+                        label={form.getValues('address')} 
+                      />
+                      <div className="absolute top-2 right-2 bg-green-500 text-white p-1 rounded-full shadow-lg z-[400]">
+                        <CheckCircle2 className="w-4 h-4" />
+                      </div>
+                   </div>
+                   <div className="flex items-center gap-2 px-1">
+                      <div className="flex items-center gap-1.5 bg-green-50 text-green-600 px-2.5 py-1 rounded-full text-[10px] font-black border border-green-100">
+                        <MapPin className="w-3 h-3" />
+                        <span>GPS: {lat.toFixed(5)}, {lng.toFixed(5)}</span>
+                      </div>
+                      <span className="text-[10px] text-gray-400 font-bold italic">Vị trí đã được xác nhận</span>
+                   </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-100 rounded-xl text-amber-700">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <p className="text-[10px] font-bold leading-tight">
+                    Khách hàng này chưa có tọa độ GPS. Hãy nhấn "Tự động tìm" hoặc "Ghim bản đồ" để xác định điểm mốc chấm công.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -283,13 +348,12 @@ export function CustomerForm({ customer, onSuccess, onCancel }: CustomerFormProp
         </form>
       </Form>
 
+      {/* ✅ Modal chọn vị trí thủ công (Leaflet) */}
       <LocationPickerModal
         open={isMapOpen}
         onClose={() => setIsMapOpen(false)}
         onConfirm={handleLocationConfirm}
-        initialLocation={hasLocation 
-          ? { lat: lat!, lng: lng! } 
-          : undefined}
+        initialLocation={lat && lng ? { lat, lng } : undefined}
       />
     </>
   )

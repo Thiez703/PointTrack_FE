@@ -57,25 +57,10 @@ export interface EmployeeSummaryStats {
   newThisMonth: number;
 }
 
-// --- Module 3: Shift Template ---
-export const ShiftTemplateSchema = z.object({
-  name: z.string().min(1, "Tên ca không được để trống"),
-  defaultStart: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d):([0-5]\d)$/, "Định dạng HH:mm:ss"),
-  defaultEnd: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d):([0-5]\d)$/, "Định dạng HH:mm:ss"),
-  shiftType: z.enum(["NORMAL", "HOLIDAY", "OT_EMERGENCY"]),
-});
-
-export type ShiftTemplateRequest = z.infer<typeof ShiftTemplateSchema>;
-
-export interface ShiftTemplate extends ShiftTemplateRequest {
-  id: number;
-}
-
 // --- Module 4: Attendance & Scheduling ---
 export const ScheduleSchema = z.object({
   employeeId: z.number(),
   customerId: z.number(),
-  shiftTemplateId: z.number(),
   workDate: z.string(), // ISO Date
 });
 

@@ -1,4 +1,5 @@
 import { apiJava, apiNext } from '@/lib/axios'
+import { API_ENDPOINTS } from '@/lib/endpoints'
 import {
   AuthResponse,
   LoginFormValues,
@@ -6,25 +7,23 @@ import {
 } from "@/app/types/auth.schema";
 
 export class AuthService {
-  private static readonly PREFIX = 'auth'
-
   // ─── Direct Java BE calls (used in Next.js server-side proxy routes) ───
 
   static async loginJava(userData: LoginFormValues): Promise<AuthResponse> {
-    const response = await apiJava.post<AuthResponse>(`${this.PREFIX}/login`, userData)
+    const response = await apiJava.post<AuthResponse>(API_ENDPOINTS.AUTH.LOGIN, userData)
     return response.data
   }
 
   /** Called by /api/auth/refresh route — sends refreshToken, gets new tokens back */
   static async refresh(refreshToken: string): Promise<AuthResponse> {
-    const response = await apiJava.post<AuthResponse>(`${this.PREFIX}/token/refresh`, { refreshToken })
+    const response = await apiJava.post<AuthResponse>(API_ENDPOINTS.AUTH.REFRESH, { refreshToken })
     return response.data
   }
 
   /** Called by /api/auth/logout route — requires token for server-side proxy */
   static async logout(token?: string): Promise<void> {
     await apiJava.post(
-      `${this.PREFIX}/logout`,
+      API_ENDPOINTS.AUTH.LOGOUT,
       {},
       token ? { headers: { Authorization: `Bearer ${token}` } } : {}
     )
@@ -66,7 +65,7 @@ export class AuthService {
   /** Returns the logged-in user's profile (direct object per v1 spec) */
   static async me(token?: string): Promise<UserMeResponse> {
     const response = await apiJava.get<UserMeResponse>(
-      `${this.PREFIX}/me`,
+      API_ENDPOINTS.AUTH.ME,
       token ? { headers: { Authorization: `Bearer ${token}` } } : {}
     )
     return response.data
@@ -74,7 +73,7 @@ export class AuthService {
 
   /** GET /api/auth/profile — returns the object directly (no wrapper) */
   static async getProfile(): Promise<UserMeResponse> {
-    const response = await apiJava.get<UserMeResponse>(`${this.PREFIX}/profile`)
+    const response = await apiJava.get<UserMeResponse>(API_ENDPOINTS.AUTH.PROFILE)
     return response.data
   }
 
@@ -82,7 +81,7 @@ export class AuthService {
     phoneNumber?: string
     avatarUrl?: string
   }): Promise<UserMeResponse> {
-    const response = await apiJava.put<UserMeResponse>(`${this.PREFIX}/profile`, data)
+    const response = await apiJava.put<UserMeResponse>(API_ENDPOINTS.AUTH.PROFILE, data)
     return response.data
   }
 
@@ -91,7 +90,7 @@ export class AuthService {
   // UPDATE: forgotPassword dùng phoneNumber thay email
   static async forgotPassword(phoneNumber: string): Promise<{ message: string }> {
     const response = await apiJava.post<{ message: string }>(
-      `${this.PREFIX}/password/forgot`,
+      API_ENDPOINTS.AUTH.FORGOT_PASSWORD,
       { phoneNumber }
     )
     return response.data
@@ -103,7 +102,7 @@ export class AuthService {
     otp: string
   ): Promise<{ data: { resetToken: string }; message: string }> {
     const response = await apiJava.post(
-      `${this.PREFIX}/password/verify-otp`,
+      API_ENDPOINTS.AUTH.VERIFY_OTP,
       { phoneNumber, otp }
     )
     return response.data
@@ -115,7 +114,7 @@ export class AuthService {
     newPassword: string
     confirmPassword: string
   }): Promise<void> {
-    await apiJava.put(`${this.PREFIX}/password/reset`, data)
+    await apiJava.put(API_ENDPOINTS.AUTH.RESET_PASSWORD, data)
   }
 
   static async changePassword(data: {
@@ -123,7 +122,7 @@ export class AuthService {
     newPassword: string
     confirmPassword: string
   }): Promise<void> {
-    await apiJava.put(`${this.PREFIX}/password/change`, data)
+    await apiJava.put(API_ENDPOINTS.AUTH.CHANGE_PASSWORD, data)
   }
 
   /** Called when forcePasswordChange === true — returns new AuthResponse */
@@ -132,7 +131,7 @@ export class AuthService {
     confirmPassword: string
   }): Promise<AuthResponse> {
     const response = await apiJava.put<AuthResponse>(
-      `${this.PREFIX}/password/first-change`,
+      API_ENDPOINTS.AUTH.FIRST_CHANGE_PASSWORD,
       data
     )
     return response.data

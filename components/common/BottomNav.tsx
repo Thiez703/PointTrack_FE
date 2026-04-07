@@ -8,7 +8,7 @@ const navItems = [
     { id: '/', label: 'Trang chủ', icon: Home },
     { id: '/calendar', label: 'Lịch làm', icon: Calendar },
     { id: '/checkin', label: '', icon: MapPin },
-    { id: '/exchange', label: 'Đổi ca', icon: ArrowLeftRight },
+    { id: '/shift-swap', label: 'Đổi ca', icon: ArrowLeftRight },
     { id: '/profile', label: 'Tài khoản', icon: User },
 ];
 

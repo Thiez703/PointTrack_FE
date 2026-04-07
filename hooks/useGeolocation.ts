@@ -5,6 +5,7 @@ import { useState, useCallback } from 'react'
 interface GeolocationState {
   lat: number | null
   lng: number | null
+  accuracy: number | null
   error: string | null
   loading: boolean
 }
@@ -13,6 +14,7 @@ export function useGeolocation() {
   const [state, setState] = useState<GeolocationState>({
     lat: null,
     lng: null,
+    accuracy: null,
     error: null,
     loading: false,
   })
@@ -27,9 +29,13 @@ export function useGeolocation() {
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        const { latitude, longitude, accuracy } = position.coords
+        console.log('GPS Coords Acquired:', { latitude, longitude, accuracy })
+        
         setState({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
+          lat: latitude,
+          lng: longitude,
+          accuracy: accuracy,
           error: null,
           loading: false,
         })
@@ -46,7 +52,11 @@ export function useGeolocation() {
           loading: false,
         }))
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      { 
+        enableHighAccuracy: true, 
+        timeout: 15000, 
+        maximumAge: 0 
+      }
     )
   }, [])
 

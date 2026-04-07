@@ -21,7 +21,7 @@ export const SITE_CONFIG = {
   description: "Giải pháp quản lý thông minh",
   phone: "1800 6324",
   address: "Khu Công Nghệ Cao, TP. Thủ Đức, TP. Hồ Chí Minh",
-  googleMapsApiKey: "AIzaSyD7Jnv9EAd41SGqBxg4n7oEfYVvAEKA-UM",
+  googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "AIzaSyD7Jnv9EAd41SGqBxg4n7oEfYVvAEKA-UM",
 };
 
 export const MAIN_NAV: NavItem[] = [
