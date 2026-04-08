@@ -42,6 +42,14 @@ export function AdminSidebar() {
   const pathname = usePathname();
   const { isCollapsed, toggleCollapse, isOpen, setIsOpen } = useSidebarStore();
   const { isLoggingOut, handleLogout } = useLogout();
+  const exactMatchHref = menuItems.find((item) => pathname === item.href)?.href;
+
+  const isMenuItemActive = (href: string) => {
+    if (exactMatchHref) {
+      return exactMatchHref === href;
+    }
+    return href !== "/admin" && pathname.startsWith(href + "/");
+  };
 
   const sidebarContent = (
     <div className={cn(
@@ -80,7 +88,7 @@ export function AdminSidebar() {
       <nav className="flex-1 px-3 py-4 space-y-2 overflow-y-auto no-scrollbar scroll-smooth">
         <TooltipProvider delayDuration={0}>
           {menuItems.map((item) => {
-            const isActive = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href + "/"));
+            const isActive = isMenuItemActive(item.href);
             
             const linkContent = (
               <div className={cn(
@@ -207,7 +215,7 @@ export function AdminSidebar() {
             <div className="flex-1 overflow-y-auto px-3">
                {/* Mobile specific navigation list - always expanded */}
                {menuItems.map((item) => {
-                  const isActive = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href + "/"));
+                const isActive = isMenuItemActive(item.href);
                   return (
                     <Link key={item.href} href={item.href} onClick={() => setIsOpen(false)}>
                       <div className={cn(

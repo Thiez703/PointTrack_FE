@@ -43,7 +43,7 @@ export default function FirstChangePasswordPage() {
     onSuccess: (data) => {
       setAuth(data);
       toast.success("Đổi mật khẩu thành công! Chào mừng bạn.");
-      router.push(data.role === "ADMIN" ? "/admin" : "/");
+      router.push(data.role === "ADMIN" ? "/admin" : "/checkin");
     },
     onError: (err: any) => {
       const msg =

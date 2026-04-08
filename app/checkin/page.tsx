@@ -13,8 +13,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { AttendanceService } from "@/app/services/attendance.service";
+import { ShiftStatus, type CheckInResponse, type CheckOutResponse, type ShiftSchema, type WorkScheduleResponse } from "@/app/types/attendance.schema";
 import { SchedulingService } from "@/app/services/scheduling.service";
-import { ShiftStatus, type CheckInResponse, type CheckOutResponse, type ShiftSchema } from "@/app/types/attendance.schema";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 import { useAuthStore } from "@/stores/useAuthStore";
@@ -114,6 +114,12 @@ function getShiftTimeState(shift: ShiftSchema, now: Date) {
   };
 }
 
+function isShiftDisplayable(shift: ShiftSchema, now: Date): boolean {
+  const timeState = getShiftTimeState(shift, now);
+  const derivedStatus = getShiftStatus(shift);
+  return timeState.isActive || timeState.isUpcoming || derivedStatus === "IN_PROGRESS";
+}
+
 function formatRemainingDuration(totalSeconds: number): string {
   const safeSeconds = Math.max(0, totalSeconds);
   const mins = Math.floor(safeSeconds / 60);
@@ -122,6 +128,20 @@ function formatRemainingDuration(totalSeconds: number): string {
 }
 
 function getCheckoutRuleForShift(shift: ShiftSchema, now: Date) {
+  const isSyntheticOpenRecord =
+    shift.id < 0 &&
+    !!shift.attendanceRecordId &&
+    !!shift.checkInTime &&
+    !shift.checkOutTime;
+
+  if (isSyntheticOpenRecord) {
+    return {
+      requiredMinutes: 0,
+      remainingSeconds: 0,
+      canCheckOut: true,
+    };
+  }
+
   const durationMinutes = getShiftDurationMinutes(shift.startTime, shift.endTime);
   const requiredMinutes = Math.max(1, Math.ceil(durationMinutes * MIN_CHECKOUT_WORK_RATIO));
 
@@ -161,6 +181,57 @@ function getCheckoutRuleForShift(shift: ShiftSchema, now: Date) {
   };
 }
 
+function mapWorkScheduleStatusToShiftStatus(status?: string): ShiftStatus {
+  const normalized = (status ?? "").toUpperCase();
+
+  if (normalized === "IN_PROGRESS") return ShiftStatus.IN_PROGRESS;
+  if (normalized === "COMPLETED") return ShiftStatus.COMPLETED;
+  if (normalized === "CANCELLED") return ShiftStatus.CANCELLED;
+  if (normalized === "MISSED") return ShiftStatus.MISSED;
+
+  return ShiftStatus.CONFIRMED;
+}
+
+function mapWorkScheduleToShift(schedule: WorkScheduleResponse): ShiftSchema {
+  const nowIso = new Date().toISOString();
+
+  return {
+    id: schedule.id,
+    employeeId: schedule.userId ?? null,
+    employeeName: schedule.userName ?? null,
+    customerId: 0,
+    customerName: schedule.customerName || "Khách hàng",
+    customerLatitude: schedule.customerLatitude ?? schedule.lat ?? 0,
+    customerLongitude: schedule.customerLongitude ?? schedule.lng ?? 0,
+    customerAddress: schedule.customerAddress || schedule.address || "Chưa có địa chỉ",
+    packageId: null,
+    shiftDate: schedule.workDate,
+    startTime: schedule.startTime,
+    endTime: schedule.endTime,
+    durationMinutes: 0,
+    shiftType: "NORMAL" as ShiftSchema["shiftType"],
+    otMultiplier: 1,
+    status: mapWorkScheduleStatusToShiftStatus(schedule.status),
+    notes: schedule.note ?? null,
+    checkInTime: schedule.checkInTime ?? null,
+    attendanceRecordId: schedule.attendanceRecordId ?? null,
+    checkInLat: null,
+    checkInLng: null,
+    checkInDistanceMeters: null,
+    checkInPhoto: null,
+    checkOutTime: schedule.checkOutTime ?? null,
+    checkOutLat: null,
+    checkOutLng: null,
+    checkOutDistanceMeters: null,
+    actualMinutes: null,
+    createdAt: nowIso,
+    updatedAt: nowIso,
+  };
+}
+
+type ShiftDataSource = "attendance" | "shift";
+type DisplayShift = ShiftSchema & { dataSource: ShiftDataSource };
+
 type ExtendedShiftStatus =
   | "SCHEDULED"      // Sẵn sàng check-in (CONFIRMED, ASSIGNED, PUBLISHED)
   | "IN_PROGRESS"    // Đang làm việc (đã check-in)
@@ -171,6 +242,12 @@ type ExtendedShiftStatus =
 function getShiftStatus(
   shift: ShiftSchema
 ): ExtendedShiftStatus {
+  const hasCheckedIn = !!shift.checkInTime;
+  const hasCheckedOut = !!shift.checkOutTime;
+  const hasOpenAttendanceRecord = !!shift.attendanceRecordId && !hasCheckedOut;
+
+  if ((hasCheckedIn && !hasCheckedOut) || hasOpenAttendanceRecord) return "IN_PROGRESS";
+
   const status = shift.status?.toUpperCase();
   
   if (status === "COMPLETED") return "COMPLETED";
@@ -386,24 +463,55 @@ export default function CheckinPage() {
 
   // Today's shifts — auto-refresh every 30s
   const {
-    data: shiftsData,
+    data: schedulesData,
     isLoading: isLoadingShifts,
     error: shiftsError,
     refetch: refetchShifts,
   } = useQuery({
-    queryKey: ["shifts", "my-today"],
-    queryFn: () => SchedulingService.getMyTodayShifts(),
-    enabled: !!userInfo,
+    queryKey: ["attendance", "schedule", "my-today"],
+    queryFn: () => AttendanceService.getMyTodaySchedules(),
+    enabled: true,
     refetchInterval: 30_000,
   });
 
-  // BE trả về { success, message, data: ShiftSchema[] } — data là mảng trực tiếp
-  const todayShifts = useMemo<ShiftSchema[]>(
-    () => (Array.isArray(shiftsData?.data) ? shiftsData.data : []),
-    [shiftsData?.data]
+  const { data: fallbackShiftData, refetch: refetchFallbackShifts } = useQuery({
+    queryKey: ["shifts", "my-today", "fallback"],
+    queryFn: () => SchedulingService.getMyTodayShifts(),
+    enabled: true,
+    refetchInterval: 30_000,
+  });
+
+  const { data: myRecordsData } = useQuery({
+    queryKey: ["attendance", "my-records", "open-checkout"],
+    queryFn: () => AttendanceService.getMyRecords({ page: 0, size: 20 }),
+    enabled: true,
+    refetchInterval: 30_000,
+  });
+
+  // BE trả về { success, message, data: WorkScheduleResponse[] } — map về ShiftSchema để tái sử dụng UI hiện có.
+  const attendanceTodayShifts = useMemo<DisplayShift[]>(
+    () => (Array.isArray(schedulesData?.data) ? schedulesData.data.map(mapWorkScheduleToShift).map((s) => ({ ...s, dataSource: "attendance" as const })) : []),
+    [schedulesData?.data]
   );
 
-  const mergedTodayShifts = useMemo<ShiftSchema[]>(
+  const shiftTodayShifts = useMemo<DisplayShift[]>(
+    () => (Array.isArray(fallbackShiftData?.data) ? fallbackShiftData.data.map((s) => ({ ...s, dataSource: "shift" as const })) : []),
+    [fallbackShiftData?.data]
+  );
+
+  const attendanceDisplayableCount = useMemo(
+    () => attendanceTodayShifts.filter((shift) => isShiftDisplayable(shift, currentTime)).length,
+    [attendanceTodayShifts, currentTime]
+  );
+
+  const usingAttendanceSource = attendanceDisplayableCount > 0;
+
+  const todayShifts = useMemo<DisplayShift[]>(
+    () => (usingAttendanceSource ? attendanceTodayShifts : shiftTodayShifts),
+    [usingAttendanceSource, attendanceTodayShifts, shiftTodayShifts]
+  );
+
+  const mergedTodayShifts = useMemo<DisplayShift[]>(
     () =>
       todayShifts.map((shift) => ({
         ...shift,
@@ -412,13 +520,65 @@ export default function CheckinPage() {
     [todayShifts, optimisticShiftState]
   );
 
-  const visibleTodayShifts = useMemo<ShiftSchema[]>(
+  const orphanCheckoutShift = useMemo<DisplayShift | null>(() => {
+    if (!usingAttendanceSource) return null;
+
+    const records = myRecordsData?.data?.content;
+    if (!Array.isArray(records) || records.length === 0) return null;
+
+    const openRecord = records.find((record) => !!record.checkInTime && !record.checkOutTime);
+    if (!openRecord) return null;
+    const fallbackTime = openRecord.checkInTime ?? new Date().toISOString();
+
+    const alreadyInShiftList = mergedTodayShifts.some(
+      (shift) => shift.attendanceRecordId === openRecord.id && !shift.checkOutTime
+    );
+    if (alreadyInShiftList) return null;
+
+    return {
+      id: -openRecord.id,
+      employeeId: userInfo?.userId ?? null,
+      employeeName: userInfo?.fullName ?? null,
+      customerId: openRecord.customerId ?? 0,
+      customerName: openRecord.customerName || "Ca trước chưa check-out",
+      customerLatitude: 0,
+      customerLongitude: 0,
+      customerAddress: "Vui lòng check-out ca trước để tiếp tục check-in ca mới",
+      packageId: null,
+      shiftDate: openRecord.shiftDate,
+      startTime: "00:00",
+      endTime: "23:59",
+      durationMinutes: 0,
+      shiftType: "NORMAL" as ShiftSchema["shiftType"],
+      otMultiplier: 1,
+      status: ShiftStatus.IN_PROGRESS,
+      notes: "Ca đang mở từ bản ghi chấm công, cần check-out trước",
+      checkInTime: openRecord.checkInTime,
+      attendanceRecordId: openRecord.id,
+      checkInLat: null,
+      checkInLng: null,
+      checkInDistanceMeters: null,
+      checkInPhoto: null,
+      checkOutTime: null,
+      checkOutLat: null,
+      checkOutLng: null,
+      checkOutDistanceMeters: null,
+      actualMinutes: null,
+      createdAt: fallbackTime,
+      updatedAt: fallbackTime,
+      dataSource: "attendance",
+    };
+  }, [myRecordsData?.data?.content, mergedTodayShifts, userInfo?.fullName, userInfo?.userId, usingAttendanceSource]);
+
+  const shiftsForDisplay = useMemo<DisplayShift[]>(
+    () => (orphanCheckoutShift ? [orphanCheckoutShift, ...mergedTodayShifts] : mergedTodayShifts),
+    [orphanCheckoutShift, mergedTodayShifts]
+  );
+
+  const visibleTodayShifts = useMemo<DisplayShift[]>(
     () =>
-      mergedTodayShifts.filter((shift) => {
-        const timeState = getShiftTimeState(shift, currentTime);
-        return timeState.isActive || timeState.isUpcoming;
-      }),
-    [mergedTodayShifts, currentTime]
+      shiftsForDisplay.filter((shift) => isShiftDisplayable(shift, currentTime)),
+    [shiftsForDisplay, currentTime]
   );
 
   useEffect(() => {
@@ -450,10 +610,10 @@ export default function CheckinPage() {
   }, [todayShifts]);
 
   // Action sheet
-  const [actionShift, setActionShift] = useState<ShiftSchema | null>(null);
+  const [actionShift, setActionShift] = useState<DisplayShift | null>(null);
   const [actionType, setActionType] = useState<ActionType>("checkin");
 
-  const openAction = (shift: ShiftSchema, type: ActionType) => {
+  const openAction = (shift: DisplayShift, type: ActionType) => {
     setActionShift(shift);
     setActionType(type);
     pendingGpsRef.current = null;
@@ -577,48 +737,14 @@ export default function CheckinPage() {
   const [checkOutResult, setCheckOutResult] = useState<CheckOutResponse | null>(null);
 
   // Checkout rule: chỉ cho phép sau khi đã làm >= 50% thời lượng ca
-  const checkoutRule = (() => {
-    if (!actionShift || actionType !== "checkout") {
-      return {
-        requiredMinutes: 0,
-        remainingSeconds: 0,
-        canCheckOut: true,
-      };
-    }
-
-    const durationMinutes = getShiftDurationMinutes(actionShift.startTime, actionShift.endTime);
-    const requiredMinutes = Math.max(1, Math.ceil(durationMinutes * MIN_CHECKOUT_WORK_RATIO));
-
-    if (!actionShift.checkInTime) {
-      return {
-        requiredMinutes,
-        remainingSeconds: requiredMinutes * 60,
-        canCheckOut: false,
-      };
-    }
-
-    const checkInAt = new Date(actionShift.checkInTime);
-    if (Number.isNaN(checkInAt.getTime())) {
-      return {
-        requiredMinutes,
-        remainingSeconds: requiredMinutes * 60,
-        canCheckOut: false,
-      };
-    }
-
-    const elapsedSeconds = Math.max(
-      0,
-      Math.floor((currentTime.getTime() - checkInAt.getTime()) / 1000)
-    );
-    const requiredSeconds = requiredMinutes * 60;
-    const remainingSeconds = Math.max(0, requiredSeconds - elapsedSeconds);
-
-    return {
-      requiredMinutes,
-      remainingSeconds,
-      canCheckOut: remainingSeconds === 0,
-    };
-  })();
+  const checkoutRule =
+    actionShift && actionType === "checkout"
+      ? getCheckoutRuleForShift(actionShift, currentTime)
+      : {
+          requiredMinutes: 0,
+          remainingSeconds: 0,
+          canCheckOut: true,
+        };
   const canCheckOut = checkoutRule.canCheckOut;
 
   // ── Submit handlers ──────────────────────────────────────────
@@ -631,31 +757,57 @@ export default function CheckinPage() {
     const lat = coords?.lat ?? pendingGpsRef.current?.lat ?? gps?.lat ?? fallbackCoords.lat;
     const lng = coords?.lng ?? pendingGpsRef.current?.lng ?? gps?.lng ?? fallbackCoords.lng;
     try {
-      const res = await AttendanceService.checkIn({
-        workScheduleId: actionShift.id,
-        latitude: lat,
-        longitude: lng,
-        photo: photoFile,
-        note: reason,
-        capturedAt: format(new Date(), "yyyy-MM-dd'T'HH:mm:ss"),
-      });
-      checkInResultRef.current = res.data;
+      if ((actionShift as DisplayShift).dataSource === "shift") {
+        const res = await SchedulingService.checkInShift(actionShift.id, {
+          latitude: lat,
+          longitude: lng,
+        });
+        checkInResultRef.current = null;
 
-      setOptimisticShiftState((prev) => ({
-        ...prev,
-        [actionShift.id]: {
-          ...(prev[actionShift.id] ?? {}),
-          status: ShiftStatus.IN_PROGRESS,
-          checkInTime: new Date().toISOString(),
-          attendanceRecordId: res.data.attendanceRecordId ?? actionShift.attendanceRecordId ?? null,
-        },
-      }));
+        setOptimisticShiftState((prev) => ({
+          ...prev,
+          [actionShift.id]: {
+            ...(prev[actionShift.id] ?? {}),
+            status: ShiftStatus.IN_PROGRESS,
+            checkInTime: new Date().toISOString(),
+          },
+        }));
 
-      toast.success("Check-in thành công!");
+        toast.success(res.message || "Check-in thành công!");
+      } else {
+        const res = await AttendanceService.checkIn({
+          workScheduleId: actionShift.id,
+          latitude: lat,
+          longitude: lng,
+          photo: photoFile,
+          note: reason,
+          capturedAt: format(new Date(), "yyyy-MM-dd'T'HH:mm:ss"),
+        });
+        checkInResultRef.current = res.data;
+
+        setOptimisticShiftState((prev) => ({
+          ...prev,
+          [actionShift.id]: {
+            ...(prev[actionShift.id] ?? {}),
+            status: ShiftStatus.IN_PROGRESS,
+            checkInTime: new Date().toISOString(),
+            attendanceRecordId: res.data.attendanceRecordId ?? actionShift.attendanceRecordId ?? null,
+          },
+        }));
+
+        toast.success("Check-in thành công!");
+      }
       clearPhoto();
       closeAction();
       refetchShifts();
+      refetchFallbackShifts();
     } catch (err: any) {
+      if (typeof err?.message === "string" && err.message.includes("Bạn chưa check-out ca trước") && orphanCheckoutShift) {
+        toast.error("Bạn chưa check-out ca trước. Hệ thống đã chuyển sang ca cần CHECK-OUT.");
+        clearPhoto();
+        openAction(orphanCheckoutShift, "checkout");
+        return;
+      }
       toast.error(err.message || "Check-in thất bại");
     } finally {
       setIsSubmitting(false);
@@ -667,30 +819,46 @@ export default function CheckinPage() {
       toast.error("Vui lòng chụp ảnh selfie trước khi check-out");
       return;
     }
-    const attendanceRecordId =
-      checkInResultRef.current?.attendanceRecordId ??
-      actionShift.attendanceRecordId;
-    if (!attendanceRecordId) {
-      toast.error("Không tìm thấy ID chấm công. Vui lòng liên hệ admin.");
-      return;
-    }
+
     setIsCheckOutLateDialogOpen(false);
     setIsSubmitting(true);
     const fallbackCoords = getFallbackCoordsForShift(actionShift);
     const lat = coords?.lat ?? pendingGpsRef.current?.lat ?? gps?.lat ?? fallbackCoords.lat;
     const lng = coords?.lng ?? pendingGpsRef.current?.lng ?? gps?.lng ?? fallbackCoords.lng;
     try {
-      const formData = new FormData();
-      formData.append('attendanceRecordId', String(attendanceRecordId));
-      formData.append('latitude', String(lat));
-      formData.append('longitude', String(lng));
-      formData.append('photo', photoFile);
-      formData.append('capturedAt', format(new Date(), "yyyy-MM-dd'T'HH:mm:ss"));
-      if (reason) {
-        formData.append('checkOutReason', reason);
-      }
+      let checkOutMessage: string | undefined;
+      let checkOutData: CheckOutResponse | undefined;
 
-      const checkOutRes = await AttendanceService.postCheckout(formData);
+      if ((actionShift as DisplayShift).dataSource === "shift") {
+        const shiftCheckOutRes = await SchedulingService.checkOutShift(actionShift.id, {
+          latitude: lat,
+          longitude: lng,
+        });
+        checkOutMessage = shiftCheckOutRes.message;
+      } else {
+        const attendanceRecordId =
+          checkInResultRef.current?.attendanceRecordId ??
+          actionShift.attendanceRecordId;
+        if (!attendanceRecordId) {
+          toast.error("Không tìm thấy ID chấm công. Vui lòng liên hệ admin.");
+          setIsSubmitting(false);
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append('attendanceRecordId', String(attendanceRecordId));
+        formData.append('latitude', String(lat));
+        formData.append('longitude', String(lng));
+        formData.append('photo', photoFile);
+        formData.append('capturedAt', format(new Date(), "yyyy-MM-dd'T'HH:mm:ss"));
+        if (reason) {
+          formData.append('checkOutReason', reason);
+        }
+
+        const attendanceCheckOutRes = await AttendanceService.postCheckout(formData);
+        checkOutMessage = attendanceCheckOutRes.message;
+        checkOutData = attendanceCheckOutRes.data;
+      }
       
       checkInResultRef.current = null;
 
@@ -706,9 +874,12 @@ export default function CheckinPage() {
       clearPhoto();
       closeAction();
       refetchShifts();
-      setCheckOutResult(checkOutRes.data);
-      if (checkOutRes.message) {
-        toast.success(checkOutRes.message);
+      refetchFallbackShifts();
+      if (checkOutData) {
+        setCheckOutResult(checkOutData);
+      }
+      if (checkOutMessage) {
+        toast.success(checkOutMessage);
       }
     } catch (err: any) {
       toast.error(err.message || "Check-out thất bại");
@@ -868,12 +1039,10 @@ export default function CheckinPage() {
             </div>
             <div>
               <h3 className="text-base font-black text-red-600 uppercase tracking-tight">
-                Không có ca trong khung giờ hoạt động
+                Chưa có ca làm
               </h3>
               <p className="text-xs font-bold text-red-400 mt-1 uppercase tracking-widest leading-relaxed">
-                Không có ca chưa bắt đầu hoặc đang hoạt động.
-                <br />
-                Các ca quá giờ đã được ẩn khỏi màn hình chấm công.
+                Hiện không có ca nào để chấm công.
               </p>
             </div>
           </div>

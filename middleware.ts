@@ -22,11 +22,6 @@ const PROTECTED_PATHS = [
 export function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname
 
-  // Always land on login page when opening the root URL.
-  if (path === '/') {
-    return NextResponse.redirect(new URL('/login', req.url))
-  }
-
   // Skip static files and Next.js internals
   if (
     path.startsWith('/_next') ||

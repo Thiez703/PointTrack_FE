@@ -54,6 +54,19 @@ export async function POST(_request: Request) {
       })
     }
 
+    if (res.forcePasswordChange) {
+      response.cookies.set({
+        name: 'forcePasswordChange',
+        value: 'true',
+        path: '/',
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+      })
+    } else {
+      response.cookies.delete('forcePasswordChange')
+    }
+
     return response
   } catch {
     return NextResponse.json(

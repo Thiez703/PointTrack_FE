@@ -48,6 +48,7 @@ export const API_ENDPOINTS = {
     ADMIN_UPDATE: (recordId: string | number) => `/api/v1/attendance/${recordId}/admin-update`,
     SCHEDULE_CREATE: '/api/v1/attendance/schedule/create',
     SCHEDULE_ALL: '/api/v1/attendance/schedule/all',
+    SCHEDULE_MY_TODAY: '/api/v1/attendance/schedule/my-today',
   },
   ATTENDANCE_HISTORY: {
     HISTORY: '/api/v1/attendance-history/history',

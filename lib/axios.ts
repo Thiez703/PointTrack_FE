@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { tokenUtils } from './tokenUtils'
+import { normalizeApiError } from './errorMessages'
 
 // Track pending requests for deduplication
 const pendingRequests = new Map<string, Promise<any>>()
@@ -55,9 +56,7 @@ apiJava.interceptors.request.use((config) => {
 apiNext.interceptors.response.use(
   (response) => response,
   (error) => {
-    const message = error.response?.data?.detail || error.response?.data?.message || 'Có lỗi xảy ra'
-    const errorCode = error.response?.data?.errorCode || 'UNKNOWN_ERROR'
-    return Promise.reject({ message, errorCode, response: error.response })
+    return Promise.reject(normalizeApiError(error))
   }
 )
 
@@ -127,9 +126,7 @@ apiJava.interceptors.response.use(
       }
     }
 
-    const message = error.response?.data?.detail || error.response?.data?.message || 'Có lỗi xảy ra'
-    const errorCode = error.response?.data?.errorCode || 'UNKNOWN_ERROR'
-    return Promise.reject({ message, errorCode, response: error.response })
+    return Promise.reject(normalizeApiError(error))
   }
 )
 

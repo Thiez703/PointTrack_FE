@@ -217,11 +217,22 @@ export interface WorkScheduleRequest {
 
 export interface WorkScheduleResponse {
   id: number
-  employeeId: number
-  customerId: number
-  shiftDate: string
+  userId: number
+  userName: string
+  workDate: string
   startTime: string
   endTime: string
+  address: string | null
+  lat: number | null
+  lng: number | null
   status: string
+  customerName?: string | null
+  customerAddress?: string | null
+  customerLatitude?: number | null
+  customerLongitude?: number | null
+  note?: string | null
+  attendanceRecordId?: number | null
+  checkInTime?: string | null
+  checkOutTime?: string | null
 }
 

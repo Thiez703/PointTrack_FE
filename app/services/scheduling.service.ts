@@ -215,4 +215,26 @@ export class SchedulingService {
     )
     return response.data
   }
+
+  static async checkInShift(
+    shiftId: number,
+    data: { latitude: number; longitude: number; photoUrl?: string }
+  ): Promise<ApiAttendanceResponse<{ message: string }>> {
+    const response = await apiJava.post<ApiAttendanceResponse<{ message: string }>>(
+      API_ENDPOINTS.SHIFTS.CHECK_IN(shiftId),
+      data
+    )
+    return response.data
+  }
+
+  static async checkOutShift(
+    shiftId: number,
+    data: { latitude: number; longitude: number; photoUrl?: string }
+  ): Promise<ApiAttendanceResponse<{ message: string }>> {
+    const response = await apiJava.post<ApiAttendanceResponse<{ message: string }>>(
+      API_ENDPOINTS.SHIFTS.CHECK_OUT(shiftId),
+      data
+    )
+    return response.data
+  }
 }

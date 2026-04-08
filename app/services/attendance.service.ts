@@ -19,6 +19,34 @@ import {
 } from '@/app/types/attendance'
 
 export class AttendanceService {
+  static async getMyRecords(params?: {
+    page?: number
+    size?: number
+    status?: string
+  }): Promise<ApiAttendanceResponse<{ content: Array<{
+    id: number
+    customerId: number | null
+    customerName: string | null
+    shiftDate: string
+    checkInTime: string | null
+    checkOutTime: string | null
+    status: string
+  }> }>> {
+    const response = await apiJava.get<ApiAttendanceResponse<{ content: Array<{
+      id: number
+      customerId: number | null
+      customerName: string | null
+      shiftDate: string
+      checkInTime: string | null
+      checkOutTime: string | null
+      status: string
+    }> }>>(
+      API_ENDPOINTS.ATTENDANCE.MY_RECORDS,
+      { params }
+    )
+    return response.data
+  }
+
   /**
    * Lấy lịch sử chấm công với các bộ lọc
    */
@@ -76,6 +104,13 @@ export class AttendanceService {
       API_ENDPOINTS.ATTENDANCE.SCHEDULE_ALL
     )
     return response.data;
+  }
+
+  static async getMyTodaySchedules(): Promise<ApiAttendanceResponse<WorkScheduleResponse[]>> {
+    const response = await apiJava.get<ApiAttendanceResponse<WorkScheduleResponse[]>>(
+      API_ENDPOINTS.ATTENDANCE.SCHEDULE_MY_TODAY
+    )
+    return response.data
   }
 
   /**
