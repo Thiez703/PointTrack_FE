@@ -10,22 +10,25 @@ export function useCurrentUser() {
   const pathname = usePathname()
 
   // Danh sách các trang không cần check token ngay lập tức
-  const isAuthPage = ['/login', '/signup', '/reset-password'].some(p => pathname.startsWith(p))
+  const isAuthPage = ['/login', '/signup', '/reset-password', '/forgot-password'].some(p => pathname.startsWith(p))
 
   const { data: token, isLoading: isLoadingToken } = useQuery({
     queryKey: ['tokenNext'],
     queryFn: () => AuthService.meTokenNext(),
     staleTime: Infinity,
     retry: false,
+    refetchOnWindowFocus: false,
     enabled: !isAuthPage, // Chỉ gọi khi không phải trang auth
   })
 
   const { data, isLoading } = useQuery({
     queryKey: ['currentUser', token?.accessToken],
     queryFn: () => AuthService.me(token?.accessToken ?? undefined),
-    staleTime: 30000,
+    staleTime: 300000,
     enabled: !!token?.accessToken,
-    refetchOnMount: true,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   })
 
   useEffect(() => {

@@ -58,11 +58,12 @@ export class AuthService {
     return response.data
   }
 
-  static async meTokenNext(): Promise<AuthResponse> {
+  static async meTokenNext(): Promise<AuthResponse | null> {
     const response = await fetch('/api/auth/me-token', {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
     })
+    if (response.status === 401) return null
     if (!response.ok) throw new Error('Failed to fetch token')
     return response.json()
   }

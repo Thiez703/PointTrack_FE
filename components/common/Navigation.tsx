@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useCallback } from 'react';
 import { 
     Home, Calendar, MapPin, ArrowLeftRight, User, LogOut, 
     LayoutDashboard, Briefcase, Settings, Bell, ChevronLeft, ChevronRight 
@@ -28,11 +28,11 @@ export default function Navigation() {
     const { userInfo: authUser, logout } = useAuthStore();
     const { isCollapsed, toggleCollapse, setIsOpen } = useSidebarStore();
 
-    const handleLogout = () => {
+    const handleLogout = useCallback(() => {
         logout();
         toast.success('Đã đăng xuất');
         router.push('/login');
-    };
+    }, [logout, router]);
 
     const isAuthPath = AUTH_PATHS.some(p => pathname === p || pathname.startsWith(p + '/'));
     const isAdminPath = pathname.startsWith('/admin');

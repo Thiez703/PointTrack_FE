@@ -1,6 +1,13 @@
 import axios from 'axios'
 import { tokenUtils } from './tokenUtils'
 
+// Track pending requests for deduplication
+const pendingRequests = new Map<string, Promise<any>>()
+
+const getRequestKey = (config: any): string => {
+  return `${config.method}-${config.url}`
+}
+
 // --- Instance 1: Direct Backend (Java Spring Boot) ---
 const getBaseURL = () => {
   // Ưu tiên 8080 theo yêu cầu fix
@@ -11,7 +18,7 @@ const getBaseURL = () => {
 
 export const apiJava = axios.create({
   baseURL: getBaseURL(),
-  timeout: 15000,
+  timeout: 12000,  // Reduced from 15s to 12s for better UX responsiveness
   headers: { 'Content-Type': 'application/json' }
 })
 
@@ -19,7 +26,7 @@ export const apiJava = axios.create({
 // --- Instance 2: Next.js API Proxy ---
 export const apiNext = axios.create({
   baseURL: '/api/',
-  timeout: 10000,
+  timeout: 8000,  // Reduced from 10s to 8s for proxy
   headers: { 'Content-Type': 'application/json' },
   withCredentials: true,
 })
@@ -30,7 +37,18 @@ apiJava.interceptors.request.use((config) => {
     const token = tokenUtils.getToken()
     if (token) config.headers.Authorization = `Bearer ${token}`
   }
+  
+  // Add AbortSignal with timeout for better control
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), config.timeout)
+  config.signal = controller.signal
+  
+  // Store timeout ID for cleanup
+  ;(config as any)._timeoutId = timeoutId
+  
   return config
+}, (error) => {
+  return Promise.reject(error)
 })
 
 // Simple error handler for apiNext (no refresh — proxy routes manage cookies)

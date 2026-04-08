@@ -7,7 +7,7 @@ import Link from "next/link";
 
 export default function LoginPage() {
   return (
-    <div className="min-h-[100dvh] flex flex-col md:flex-row bg-white dark:bg-slate-950 overflow-hidden">
+    <div className="min-h-[100dvh] w-full max-w-full flex flex-col md:flex-row bg-white dark:bg-slate-950 overflow-x-hidden">
       
       {/* Visual Side - Hidden on Mobile, shown from MD up */}
       <div className="hidden md:flex md:w-[40%] lg:w-1/2 relative bg-gradient-to-br from-orange-500 to-orange-600 items-center justify-center p-6 lg:p-12 overflow-hidden">
@@ -48,7 +48,7 @@ export default function LoginPage() {
         <div className="md:hidden absolute top-0 left-0 right-0 h-[25vh] sm:h-[30vh] bg-gradient-to-br from-orange-500 to-orange-600 rounded-b-[40px] z-0 shadow-lg" />
 
         {/* Top Navigation */}
-        <div className="relative z-20 flex justify-between items-center p-6 lg:p-8">
+        <div className="relative z-20 flex justify-between items-center px-4 pt-4 pb-3 sm:px-6 sm:pt-6 sm:pb-4 lg:p-8">
             <Link 
                 href="/" 
                 className="flex items-center gap-2 text-white md:text-slate-500 hover:opacity-80 transition-all font-bold text-sm"
@@ -62,25 +62,25 @@ export default function LoginPage() {
         </div>
 
         {/* Main Form Container */}
-        <div className="flex-1 flex items-center justify-center p-4 sm:p-8 md:p-12 relative z-10">
+        <div className="flex-1 flex items-start md:items-center justify-center p-4 pt-2 sm:p-8 md:p-12 relative z-10">
             <motion.div 
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.4, ease: "easeOut" }}
-                className="w-full max-w-[420px] lg:max-w-[480px] xl:max-w-[520px] transition-all duration-300"
+            className="w-full max-w-[420px] lg:max-w-[480px] xl:max-w-[520px] transition-all duration-300"
             >
-                <div className="bg-white dark:bg-slate-900 rounded-[32px] sm:rounded-[40px] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.15)] p-6 sm:p-10 lg:p-12 border border-slate-100 dark:border-slate-800">
-                    <div className="mb-8 lg:mb-10">
+            <div className="bg-white dark:bg-slate-900 rounded-[28px] sm:rounded-[40px] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.15)] p-5 sm:p-10 lg:p-12 border border-slate-100 dark:border-slate-800">
+              <div className="mb-6 sm:mb-8 lg:mb-10">
                         <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-slate-900 dark:text-white tracking-tight mb-3">Đăng nhập</h2>
                         <div className="flex items-center gap-3">
                             <div className="h-1 w-12 bg-orange-500 rounded-full" />
-                            <p className="text-slate-400 dark:text-slate-500 text-sm font-medium uppercase tracking-wider">Hệ thống PointTrack</p>
+                  <p className="text-slate-400 dark:text-slate-500 text-xs sm:text-sm font-medium uppercase tracking-wider">Hệ thống PointTrack</p>
                         </div>
                     </div>
 
                     <LoginForm />
 
-                    <div className="mt-8 lg:mt-10 pt-6 lg:pt-8 border-t border-slate-50 dark:border-slate-800 text-center">
+                    <div className="mt-6 sm:mt-8 lg:mt-10 pt-5 sm:pt-6 lg:pt-8 border-t border-slate-50 dark:border-slate-800 text-center">
                         <p className="text-[10px] text-slate-300 dark:text-slate-600 font-bold uppercase tracking-[0.3em]">
                             © 2026 PointTrack Technology
                         </p>

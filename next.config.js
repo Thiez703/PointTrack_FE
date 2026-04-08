@@ -1,7 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
-  distDir: 'dist',
   eslint: {
     ignoreDuringBuilds: true
   },
@@ -13,11 +12,6 @@ const nextConfig = {
         hostname: 'chat-webapp-nghiadev.s3.ap-southeast-1.amazonaws.com'
       }
     ]
-  },
-  logging: {
-    fetches: {
-      fullUrl: true
-    }
   }
 }
 

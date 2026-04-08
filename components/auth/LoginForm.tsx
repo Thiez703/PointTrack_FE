@@ -116,7 +116,7 @@ export default function LoginForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 sm:space-y-5 lg:space-y-6 w-full">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 sm:space-y-5 lg:space-y-6 w-full min-w-0">
       {/* Contact input */}
       <div>
         <label className="text-sm font-bold text-gray-700 dark:text-slate-300 mb-1.5 lg:mb-2 block ml-1">Email hoặc Số điện thoại</label>
@@ -128,7 +128,7 @@ export default function LoginForm() {
             type="text"
             placeholder="Nhập email hoặc số điện thoại"
             disabled={mutation.isPending}
-            className={`login-input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white ${errors.contact ? "border-red-500 ring-1 ring-red-100" : ""}`}
+            className={`login-input-field min-h-[48px] dark:bg-slate-800 dark:border-slate-700 dark:text-white ${errors.contact ? "border-red-500 ring-1 ring-red-100" : ""}`}
             {...register("contact")}
           />
         </div>
@@ -148,7 +148,7 @@ export default function LoginForm() {
             type={showPassword ? "text" : "password"}
             placeholder="Nhập mật khẩu"
             disabled={mutation.isPending}
-            className={`login-input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white ${errors.password ? "border-red-500 ring-1 ring-red-100" : ""}`}
+            className={`login-input-field min-h-[48px] dark:bg-slate-800 dark:border-slate-700 dark:text-white ${errors.password ? "border-red-500 ring-1 ring-red-100" : ""}`}
             {...register("password")}
           />
           <button
@@ -175,7 +175,7 @@ export default function LoginForm() {
           </div>
         )}
         <div className={`w-full flex justify-center transition-opacity duration-500 ${isCaptchaLoading ? 'opacity-0' : 'opacity-100'}`}>
-          <div className="scale-[0.85] xs:scale-100 transition-transform duration-300 origin-center">
+          <div className="max-w-full scale-[0.85] sm:scale-100 transition-transform duration-300 origin-center">
             <Turnstile
               sitekey={SITE_KEY}
               onLoad={() => setIsCaptchaLoading(false)}

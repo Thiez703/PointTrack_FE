@@ -48,8 +48,8 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
   }
 
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white overflow-hidden shadow-sm">
-      <Table>
+    <div className="rounded-2xl border border-gray-100 bg-white overflow-hidden shadow-sm responsive-scroll-x">
+      <Table className="min-w-[760px]">
         <TableHeader className="bg-gray-50/50">
           <TableRow className="hover:bg-transparent border-gray-100">
             <TableHead className="w-[250px] font-black uppercase text-[10px] tracking-widest text-gray-400 p-5">Khách hàng</TableHead>
@@ -87,7 +87,7 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
                 </TableCell>
                 <TableCell className="p-5">
                   <div className="flex flex-col max-w-[300px]">
-                    <span className="text-sm text-gray-600 line-clamp-1 mb-1 font-medium">{customer.address}</span>
+                    <span className="text-sm text-gray-600 break-words mb-1 font-medium">{customer.address}</span>
                     <div className="flex items-center gap-2">
                       {customer.latitude && customer.longitude ? (
                         <div className="flex items-center gap-1.5 bg-green-50 text-green-600 px-2 py-0.5 rounded-full text-[10px] font-black">

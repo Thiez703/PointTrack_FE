@@ -23,7 +23,11 @@ export default function LayoutClient({ children }: Readonly<{ children: React.Re
     queryClientRef.current = new QueryClient({
       defaultOptions: {
         queries: {
-          retry: 0
+          retry: 0,
+          refetchOnWindowFocus: false,
+          refetchOnReconnect: false,
+          refetchOnMount: false,
+          staleTime: 60_000
         }
       }
     })
@@ -37,18 +41,18 @@ export default function LayoutClient({ children }: Readonly<{ children: React.Re
     <QueryClientProvider client={queryClientRef.current}>
       <ThemeProvider attribute='class' defaultTheme='light' enableSystem disableTransitionOnChange>
         <UserInitializer />
-        <div className="flex min-h-[100dvh] bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
+        <div className="flex min-h-[100dvh] w-full max-w-full overflow-x-hidden bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
             {/* Navigation (Sidebar on Desktop, BottomBar on Mobile) */}
             <Navigation />
 
             {/* Main Content Area */}
             <main className={cn(
-                "flex-1 flex flex-col min-w-0 transition-all duration-500",
+              "flex-1 flex flex-col min-w-0 max-w-full transition-all duration-500",
                 showNavigation 
-                    ? (!isCollapsed ? "lg:pl-[280px]" : "lg:pl-[88px]") 
+                ? (!isCollapsed ? "pb-28 lg:pb-0 lg:pl-[280px]" : "pb-28 lg:pb-0 lg:pl-[88px]") 
                     : "lg:pl-0"
             )}>
-                <div className="flex-1 flex flex-col w-full max-w-[1920px] mx-auto">
+              <div className="flex-1 flex flex-col w-full max-w-[1920px] mx-auto min-w-0">
                     {children}
                 </div>
             </main>

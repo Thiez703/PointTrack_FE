@@ -240,10 +240,10 @@ export default function SchedulingPage() {
           </div>
 
           {/* Main Board Area */}
-          <div className="flex-1 overflow-auto bg-[#fcfdfe] p-6">
+          <div className="flex-1 overflow-auto bg-[#fcfdfe] p-4 sm:p-6">
             <div className="max-w-[1600px] mx-auto space-y-6">
               {/* Toolbar */}
-              <div className="flex items-center justify-between gap-4">
+              <div className="flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center bg-white p-1 rounded-2xl border border-gray-100 shadow-sm">
                   <Button variant="ghost" size="icon" onClick={handlePrev} className="h-10 w-10 rounded-xl hover:bg-orange-50 hover:text-orange-600">
                     <ChevronLeft className="w-4 h-4" />
@@ -257,11 +257,11 @@ export default function SchedulingPage() {
                   </Button>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center bg-white px-4 h-12 rounded-2xl border border-gray-100 shadow-sm gap-3">
+                <div className="flex items-center gap-3 w-full md:w-auto">
+                  <div className="flex items-center bg-white px-4 h-12 rounded-2xl border border-gray-100 shadow-sm gap-3 w-full md:w-auto">
                     <Users className="w-4 h-4 text-gray-400" />
                     <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
-                      <SelectTrigger className="w-[200px] border-none shadow-none focus:ring-0 font-bold text-sm h-full p-0">
+                      <SelectTrigger className="w-full md:w-[200px] border-none shadow-none focus:ring-0 font-bold text-sm h-full p-0">
                         <SelectValue placeholder="Tất cả nhân viên" />
                       </SelectTrigger>
                       <SelectContent className="rounded-xl border-gray-100 shadow-xl">

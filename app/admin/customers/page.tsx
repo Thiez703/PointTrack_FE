@@ -108,11 +108,11 @@ export default function CustomersPage() {
         </div>
       </div>
 
-      <div className="p-4 md:p-6 space-y-6 max-w-[1400px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="p-4 md:p-6 space-y-6 max-w-[1400px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500 w-full min-w-0">
         {/* Filter Bar */}
         <Card className="p-4 bg-white shadow-sm border-gray-100 rounded-2xl">
           <div className="flex flex-wrap items-center gap-4">
-            <div className="relative flex-1 min-w-[300px]">
+            <div className="relative w-full flex-1 min-w-0 md:min-w-[280px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input
                 placeholder="Tìm kiếm theo tên, số điện thoại hoặc địa chỉ..."
@@ -122,13 +122,13 @@ export default function CustomersPage() {
               />
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 w-full sm:w-auto">
               <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Trạng thái:</span>
               <Select
                 value={params.status}
                 onValueChange={(val) => setParams(prev => ({ ...prev, status: val, page: 1 }))}
               >
-                <SelectTrigger className="w-[160px] h-11 text-sm bg-gray-50/50 border-gray-100 rounded-xl font-bold text-gray-700">
+                <SelectTrigger className="w-full sm:w-[160px] h-11 text-sm bg-gray-50/50 border-gray-100 rounded-xl font-bold text-gray-700">
                   <SelectValue placeholder="Tất cả" />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl border-gray-100 shadow-xl">
@@ -140,13 +140,13 @@ export default function CustomersPage() {
               </Select>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 w-full sm:w-auto">
               <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Nguồn:</span>
               <Select
                 value={params.source}
                 onValueChange={(val) => setParams(prev => ({ ...prev, source: val, page: 1 }))}
               >
-                <SelectTrigger className="w-[160px] h-11 text-sm bg-gray-50/50 border-gray-100 rounded-xl font-bold text-gray-700">
+                <SelectTrigger className="w-full sm:w-[160px] h-11 text-sm bg-gray-50/50 border-gray-100 rounded-xl font-bold text-gray-700">
                   <SelectValue placeholder="Tất cả" />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl border-gray-100 shadow-xl">
@@ -188,7 +188,7 @@ export default function CustomersPage() {
       {/* Dialogs */}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
         <DialogContent className="sm:max-w-[840px] max-h-[90vh] overflow-y-auto p-0 border-none shadow-[0_0_50px_rgba(0,0,0,0.15)] rounded-3xl">
-          <div className="bg-orange-500 p-10 text-white relative overflow-hidden">
+          <div className="bg-orange-500 p-6 sm:p-10 text-white relative overflow-hidden">
             <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full -mr-24 -mt-24 blur-3xl"></div>
             <DialogHeader className="relative z-10">
               <DialogTitle className="text-3xl font-black tracking-tight leading-none uppercase">
@@ -199,7 +199,7 @@ export default function CustomersPage() {
               </DialogDescription>
             </DialogHeader>
           </div>
-          <div className="p-10 bg-white">
+          <div className="p-5 sm:p-10 bg-white">
             <CustomerForm
               customer={selectedCustomer}
               onSuccess={() => setIsFormOpen(false)}
